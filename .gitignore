@@ -1,2 +1,6 @@
 checkpoints/*
 *.pyc
+*.out 
+*.txt 
+*.bak 
+*.json 
