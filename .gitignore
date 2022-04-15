@@ -1,2 +1,4 @@
 checkpoints/*
 *.pyc
+slurm*
+.idea/

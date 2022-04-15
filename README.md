@@ -70,5 +70,11 @@ python3 -m paddle.distributed.launch --gpu 0,1,2,3 pretrain.py run --arch 132222
 # SupernetTrainning
 [Pretrained model](https://aistudio.baidu.com/aistudio/datasetdetail/134077)
 ```bash
-sh train_supernet.sh
+sbatch train_supernet.sh
+``` 
+
+# SupernetEval
+
+```bash
+sbatch eval_supernet.sh
 ``` 
