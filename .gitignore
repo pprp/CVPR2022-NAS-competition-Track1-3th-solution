@@ -4,3 +4,5 @@ checkpoints/*
 *.txt 
 *.bak 
 *.json 
+slurm* 
+.idea/
