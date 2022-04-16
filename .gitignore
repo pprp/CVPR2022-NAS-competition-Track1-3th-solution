@@ -6,3 +6,4 @@ checkpoints/*
 *.json 
 slurm* 
 .idea/
+channel_sample.txt
