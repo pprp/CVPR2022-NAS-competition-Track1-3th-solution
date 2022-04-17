@@ -433,7 +433,7 @@ class Trainer(Model):
     def evaluate_whole_test(
             self,
             eval_data,
-            batch_size=1,
+            batch_size=256,
             log_freq=10,
             verbose=1,
             num_workers=8,
@@ -445,13 +445,18 @@ class Trainer(Model):
             candidate_dict = json.load(f)
 
         if eval_data is not None and isinstance(eval_data, Dataset):
-            eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
+            # eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
+            eval_sampler = None 
             eval_loader = DataLoader(
                 eval_data,
                 batch_sampler=eval_sampler,
                 places=self._place,
+                shuffle=False, 
                 num_workers=num_workers,
-                return_list=True, use_shared_memory=True)
+                batch_size=batch_size, 
+                return_list=True, 
+                use_shared_memory=True,
+                use_buffer_reader=True)
         else:
             eval_loader = eval_data
 
