@@ -433,26 +433,32 @@ class Trainer(Model):
     def evaluate_whole_test(
             self,
             eval_data,
-            batch_size=1,
+            batch_size=256,
             log_freq=10,
             verbose=1,
-            eval_sample_num=10,
-            num_workers=0,
-            callbacks=None):
+            num_workers=8,
+            callbacks=None,
+            json_path=None):
 
-        candidate_path = "checkpoints/CVPR_2022_NAS_Track1_test.json"
+        candidate_path = json_path 
+        #"checkpoints/CVPR_2022_NAS_Track1_test.json"
 
         with open(candidate_path, "r") as f:
             candidate_dict = json.load(f)
 
         if eval_data is not None and isinstance(eval_data, Dataset):
-            eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
+            # eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
+            eval_sampler = None 
             eval_loader = DataLoader(
-                eval_data,
+                eval_data, 
                 batch_sampler=eval_sampler,
                 places=self._place,
+                shuffle=False, 
                 num_workers=num_workers,
-                return_list=True, use_shared_memory=True)
+                batch_size=batch_size, 
+                return_list=True, 
+                use_shared_memory=True,
+                use_buffer_reader=True)
         else:
             eval_loader = eval_data
 
@@ -470,14 +476,19 @@ class Trainer(Model):
         self.network.model.eval()
 
         import time
+        show_flag = True
+
         sample_result = []
         for arch_name, config in candidate_dict.items():
+            s1 = time.time() 
             cbks.on_begin('eval', {'steps': eval_steps, 'metrics': self._metrics_name()})
-            subnet_seed = int(time.time() / 10)
-            random.seed(subnet_seed)
-            self.network.active_specific_subnet(224, config['arch'])
 
+            self.network.active_specific_subnet(224, config['arch'])
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
+            
+            s3 = time.time()
+            if ParallelEnv().local_rank == 0 and show_flag:
+                print("forward_one_epoch time: ", s3-s1)
 
             cbks.on_end('eval', logs)
 
@@ -486,13 +497,15 @@ class Trainer(Model):
             eval_result = {}
             for k in self._metrics_name():
                 eval_result[k] = logs[k]
-            sample_res = '{} {} {}'.format(
-                self.network.gen_subnet_code, eval_result['acc_top1'], eval_result['acc_top5'])
+            sample_res = '{} {} {}'.format(self.network.gen_subnet_code, eval_result['acc_top1'], eval_result['acc_top5'])
             if ParallelEnv().local_rank == 0:
                 print(sample_res)
+
             sample_result.append(sample_res)
+
             if ParallelEnv().local_rank == 0:
-                with open('channel_sample.txt', 'a') as f:
+                num = json_path.split('_')[-1].split(".")[0]
+                with open(f'checkpoints/results/channel_sample_{num}.txt', 'a') as f:
                     f.write('{}\n'.format(sample_res))
 
             candidate_dict[arch_name]['acc'] = eval_result['acc_top1']

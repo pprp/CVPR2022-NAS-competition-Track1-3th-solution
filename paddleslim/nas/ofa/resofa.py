@@ -69,7 +69,7 @@ class ResOFA(OFA):
             self.act_im_size = img_size
         if arch_config is None:
             self.act_depth_list = [random.randint(s, e) for s, e in self.cand_cfg['d']]
-        else:  # TODO
+        else:
             # arch_config is a string (1246511131000000113111210052421242423200004333631313)
             # generate act_depth_list based on arch_config
             self.act_depth_list = [int(arch_config[i]) for i in range(1, 5)]
@@ -78,7 +78,6 @@ class ResOFA(OFA):
         for key, v in self._ofa_layers.items():
             layer_id = int(key.split('.')[1])
             if v:
-                # TODO
                 if layer_id < len(arch_config[5:]):
                     self.current_config[key] = {'expand_ratio': self.cand_cfg['c'][int(arch_config[5 + layer_id])-1]}
                 else:

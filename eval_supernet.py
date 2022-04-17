@@ -1,4 +1,5 @@
 import os
+import cv2 
 
 import paddle
 import paddle.nn as nn
@@ -98,6 +99,7 @@ def run(
     save_dir='checkpoints/res48-depth',
     save_freq=5,
     log_freq=100,
+    json_path=None,
     **kwargs
     ):
     run_config = locals()
@@ -112,7 +114,8 @@ def run(
         gpu_str.append(str(x))
     gpu_str = ','.join(gpu_str)
     print(f'gpu num: {nprocs}')
-    dist.spawn(main, args=(config,), nprocs=nprocs, gpus=gpu_str)
+    # dist.spawn(main, args=(config,), nprocs=nprocs, gpus=gpu_str)
+    main(config)
 
 
 def main(cfg):
@@ -125,12 +128,6 @@ def main(cfg):
     cfg.lr = cfg.lr * cfg.batch_size * dist.get_world_size() / 256
     warmup_step = int(1281024 / (cfg.batch_size * dist.get_world_size())) * cfg.warmup
 
-    transforms = Compose([
-        MyRandomResizedCrop(cfg.image_size_list),
-        RandomHorizontalFlip(),
-        ToArray(),
-        Normalize(IMAGE_MEAN, IMAGE_STD),
-    ])
     val_transforms = Compose([Resize(256), CenterCrop(224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
     val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
 
@@ -152,7 +149,7 @@ def main(cfg):
             'k': [3],  # kernel size
             'c': [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7] # channel ratio
     }
-    ofa_net = ResOFA(sp_model,  
+    ofa_net = ResOFA(sp_model,
                      distill_config=DistillConfig(teacher_model=tnet), 
                      candidate_config=cand_cfg,
                      block_conv_num=2)
@@ -170,9 +167,10 @@ def main(cfg):
         CrossEntropyLoss(),
         paddle.metric.Accuracy(topk=(1,5)))
 
-    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=8, eval_sample_num=10, callbacks=eval_callbacks)
+    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=8, callbacks=eval_callbacks, json_path=cfg.json_path)
 
 
 if __name__ == '__main__':
     import fire
     fire.Fire({"run": run})
+
