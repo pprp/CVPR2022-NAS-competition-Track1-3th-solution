@@ -448,7 +448,7 @@ class Trainer(Model):
             # eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
             eval_sampler = None 
             eval_loader = DataLoader(
-                eval_data,
+                eval_data, 
                 batch_sampler=eval_sampler,
                 places=self._place,
                 shuffle=False, 

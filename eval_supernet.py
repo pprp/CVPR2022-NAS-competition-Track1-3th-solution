@@ -113,7 +113,8 @@ def run(
         gpu_str.append(str(x))
     gpu_str = ','.join(gpu_str)
     print(f'gpu num: {nprocs}')
-    dist.spawn(main, args=(config,), nprocs=nprocs, gpus=gpu_str)
+    # dist.spawn(main, args=(config,), nprocs=nprocs, gpus=gpu_str)
+    main(config)
 
 
 def main(cfg):
@@ -126,14 +127,8 @@ def main(cfg):
     cfg.lr = cfg.lr * cfg.batch_size * dist.get_world_size() / 256
     warmup_step = int(1281024 / (cfg.batch_size * dist.get_world_size())) * cfg.warmup
 
-    transforms = Compose([
-        MyRandomResizedCrop(cfg.image_size_list),
-        RandomHorizontalFlip(),
-        ToArray(),
-        Normalize(IMAGE_MEAN, IMAGE_STD),
-    ])
     val_transforms = Compose([Resize(256), CenterCrop(224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
-    val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), loader=cv2.imread, transform=val_transforms)
+    val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
 
     eval_callbacks = [EvalCheckpoint('{}/final'.format(cfg.save_dir))]
 

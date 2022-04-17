@@ -20,8 +20,9 @@ python3 eval_supernet.py run \
   --save_dir checkpoints/res48-depth \
   --log_freq 1 \
   --resume checkpoints/res48-depth \
-  --image_dir /data/public/imagenet2012
-  # --image_dir /data/public/imagenet-mini
+  --image_dir /data/public/imagenet-mini
+
+  # --image_dir /data/public/imagenet2012
 
 # whole imagenet dataset 
 # bs: 2048 forward: 101
@@ -33,3 +34,9 @@ python3 eval_supernet.py run \
 # bs: 512 forward: 32.51
 # bs: 256 forward: 30.20
 # bs: 128 forward: 30.14
+
+# single gpu imagenet-whole
+# bs 2048 forward: 177s
+
+# single gpu imagenet-mini
+# bs 128 forward: 28s
