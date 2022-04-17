@@ -22,7 +22,8 @@ else:
     import pickle
     import queue as Queue
 
-from collections import OrderedDict, Iterable
+from collections import OrderedDict
+from collections.abc import Iterable
 import numpy as np
 import copy
 import multiprocessing

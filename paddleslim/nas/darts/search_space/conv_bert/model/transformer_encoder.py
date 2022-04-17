@@ -18,7 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-from collections import Iterable
+from collections.abc import Iterable
 
 import paddle
 import paddle.fluid as fluid

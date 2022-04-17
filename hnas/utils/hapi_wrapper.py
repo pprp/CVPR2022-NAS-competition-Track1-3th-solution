@@ -436,8 +436,7 @@ class Trainer(Model):
             batch_size=1,
             log_freq=10,
             verbose=1,
-            eval_sample_num=10,
-            num_workers=0,
+            num_workers=8,
             callbacks=None):
 
         candidate_path = "checkpoints/CVPR_2022_NAS_Track1_test.json"
@@ -470,14 +469,19 @@ class Trainer(Model):
         self.network.model.eval()
 
         import time
+        show_flag = True
+
         sample_result = []
         for arch_name, config in candidate_dict.items():
+            s1 = time.time() 
             cbks.on_begin('eval', {'steps': eval_steps, 'metrics': self._metrics_name()})
-            subnet_seed = int(time.time() / 10)
-            random.seed(subnet_seed)
-            self.network.active_specific_subnet(224, config['arch'])
 
+            self.network.active_specific_subnet(224, config['arch'])
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
+            
+            s3 = time.time()
+            if ParallelEnv().local_rank == 0 and show_flag:
+                print("forward_one_epoch time: ", s3-s1)
 
             cbks.on_end('eval', logs)
 
@@ -486,10 +490,10 @@ class Trainer(Model):
             eval_result = {}
             for k in self._metrics_name():
                 eval_result[k] = logs[k]
-            sample_res = '{} {} {}'.format(
-                self.network.gen_subnet_code, eval_result['acc_top1'], eval_result['acc_top5'])
+            sample_res = '{} {} {}'.format(self.network.gen_subnet_code, eval_result['acc_top1'], eval_result['acc_top5'])
             if ParallelEnv().local_rank == 0:
                 print(sample_res)
+
             sample_result.append(sample_res)
             if ParallelEnv().local_rank == 0:
                 with open('channel_sample.txt', 'a') as f:

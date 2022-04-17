@@ -1,4 +1,5 @@
 import os
+import cv2 
 
 import paddle
 import paddle.nn as nn
@@ -132,7 +133,7 @@ def main(cfg):
         Normalize(IMAGE_MEAN, IMAGE_STD),
     ])
     val_transforms = Compose([Resize(256), CenterCrop(224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
-    val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
+    val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), loader=cv2.imread, transform=val_transforms)
 
     eval_callbacks = [EvalCheckpoint('{}/final'.format(cfg.save_dir))]
 
@@ -152,7 +153,7 @@ def main(cfg):
             'k': [3],  # kernel size
             'c': [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7] # channel ratio
     }
-    ofa_net = ResOFA(sp_model,  
+    ofa_net = ResOFA(sp_model,
                      distill_config=DistillConfig(teacher_model=tnet), 
                      candidate_config=cand_cfg,
                      block_conv_num=2)
@@ -170,7 +171,7 @@ def main(cfg):
         CrossEntropyLoss(),
         paddle.metric.Accuracy(topk=(1,5)))
 
-    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=8, eval_sample_num=10, callbacks=eval_callbacks)
+    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=8, callbacks=eval_callbacks)
 
 
 if __name__ == '__main__':
