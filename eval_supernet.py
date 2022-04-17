@@ -99,6 +99,7 @@ def run(
     save_dir='checkpoints/res48-depth',
     save_freq=5,
     log_freq=100,
+    json_path=None,
     **kwargs
     ):
     run_config = locals()
@@ -166,7 +167,7 @@ def main(cfg):
         CrossEntropyLoss(),
         paddle.metric.Accuracy(topk=(1,5)))
 
-    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=8, callbacks=eval_callbacks)
+    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=8, callbacks=eval_callbacks, json_path=cfg.json_path)
 
 
 if __name__ == '__main__':

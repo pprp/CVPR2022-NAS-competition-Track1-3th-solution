@@ -1,18 +1,26 @@
 #!/bin/bash
 #SBATCH -N 1     # 需要使用的节点数
 #SBATCH -J supnet      # 作业名字
-#SBATCH --gres=gpu:8   # 需要使用的卡数
+#SBATCH --gres=gpu:1   # 需要使用的卡数
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
-module load anaconda/2020.11 cuda/10.2 \
- cudnn/7.6.5.32_cuda10.2 nccl/2.9.6-1_cuda10.2
+module load anaconda/2020.11 cuda/10.2 cudnn/7.6.5.32_cuda10.2 nccl/2.9.6-1_cuda10.2
 source activate pp
+
+JSON_PATH1=$1
+JSON_PATH2=$2
+JSON_PATH3=$3
+JSON_PATH4=$4
+
+# 为了优化速度问题，将数据集加载到内存中。
+mkdir -p /dev/shm/imagenet-mini/val 
+unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini
 
 # 此处可填写运行程序的命令
 python3 eval_supernet.py run \
   --backbone resnet48 \
   --max_epoch 70 \
-  --batch_size 2048 \
+  --batch_size 128 \
   --lr 0.001 \
   --warmup 5 \
   --dyna_batch_size 2 \
@@ -20,23 +28,44 @@ python3 eval_supernet.py run \
   --save_dir checkpoints/res48-depth \
   --log_freq 1 \
   --resume checkpoints/res48-depth \
-  --image_dir /data/public/imagenet-mini
-
-  # --image_dir /data/public/imagenet2012
-
-# whole imagenet dataset 
-# bs: 2048 forward: 101
-# bs: 1024 forward: 67
-# bs: 512  forward: 73
-
-# imagenet-mini
-# bs:1024 forward: 36.33 
-# bs: 512 forward: 32.51
-# bs: 256 forward: 30.20
-# bs: 128 forward: 30.14
-
-# single gpu imagenet-whole
-# bs 2048 forward: 177s
-
-# single gpu imagenet-mini
-# bs 128 forward: 28s
+  --json_path  $JSON_PATH1 \
+  --image_dir /dev/shm/imagenet-mini & 
+python3 eval_supernet.py run \
+  --backbone resnet48 \
+  --max_epoch 70 \
+  --batch_size 128 \
+  --lr 0.001 \
+  --warmup 5 \
+  --dyna_batch_size 2 \
+  --pretrained checkpoints/resnet48.pdparams \
+  --save_dir checkpoints/res48-depth \
+  --log_freq 1 \
+  --resume checkpoints/res48-depth \
+  --json_path  $JSON_PATH2 \
+  --image_dir /dev/shm/imagenet-mini & 
+python3 eval_supernet.py run \
+  --backbone resnet48 \
+  --max_epoch 70 \
+  --batch_size 128 \
+  --lr 0.001 \
+  --warmup 5 \
+  --dyna_batch_size 2 \
+  --pretrained checkpoints/resnet48.pdparams \
+  --save_dir checkpoints/res48-depth \
+  --log_freq 1 \
+  --resume checkpoints/res48-depth \
+  --json_path  $JSON_PATH3 \
+  --image_dir /dev/shm/imagenet-mini & 
+python3 eval_supernet.py run \
+  --backbone resnet48 \
+  --max_epoch 70 \
+  --batch_size 128 \
+  --lr 0.001 \
+  --warmup 5 \
+  --dyna_batch_size 2 \
+  --pretrained checkpoints/resnet48.pdparams \
+  --save_dir checkpoints/res48-depth \
+  --log_freq 1 \
+  --resume checkpoints/res48-depth \
+  --json_path  $JSON_PATH4 \
+  --image_dir /dev/shm/imagenet-mini

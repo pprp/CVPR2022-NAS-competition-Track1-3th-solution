@@ -437,9 +437,11 @@ class Trainer(Model):
             log_freq=10,
             verbose=1,
             num_workers=8,
-            callbacks=None):
+            callbacks=None,
+            json_path=None):
 
-        candidate_path = "checkpoints/CVPR_2022_NAS_Track1_test.json"
+        candidate_path = json_path 
+        #"checkpoints/CVPR_2022_NAS_Track1_test.json"
 
         with open(candidate_path, "r") as f:
             candidate_dict = json.load(f)
@@ -500,8 +502,10 @@ class Trainer(Model):
                 print(sample_res)
 
             sample_result.append(sample_res)
+
             if ParallelEnv().local_rank == 0:
-                with open('channel_sample.txt', 'a') as f:
+                num = json_path.split('_')[-1].split(".")[0]
+                with open(f'checkpoints/results/channel_sample_{num}.txt', 'a') as f:
                     f.write('{}\n'.format(sample_res))
 
             candidate_dict[arch_name]['acc'] = eval_result['acc_top1']
