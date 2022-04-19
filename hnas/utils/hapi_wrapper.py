@@ -445,6 +445,7 @@ class Trainer(Model):
 
         with open(candidate_path, "r") as f:
             candidate_dict = json.load(f)
+            save_candidate = candidate_dict.copy()
 
         if eval_data is not None and isinstance(eval_data, Dataset):
             # eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
@@ -483,7 +484,9 @@ class Trainer(Model):
             s1 = time.time() 
             cbks.on_begin('eval', {'steps': eval_steps, 'metrics': self._metrics_name()})
 
+            # print(f"before active: {config['arch']}")
             self.network.active_specific_subnet(224, config['arch'])
+            # print(f"after active: {self.network.gen_subnet_code}")
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
             
             s3 = time.time()
@@ -497,7 +500,7 @@ class Trainer(Model):
             eval_result = {}
             for k in self._metrics_name():
                 eval_result[k] = logs[k]
-            sample_res = '{} {} {}'.format(self.network.gen_subnet_code, eval_result['acc_top1'], eval_result['acc_top5'])
+            sample_res = '{} {} {} {}'.format(arch_name, config['arch'], eval_result['acc_top1'], eval_result['acc_top5'])
             if ParallelEnv().local_rank == 0:
                 print(sample_res)
 
@@ -508,11 +511,11 @@ class Trainer(Model):
                 with open(f'checkpoints/results/channel_sample_{num}.txt', 'a') as f:
                     f.write('{}\n'.format(sample_res))
 
-            candidate_dict[arch_name]['acc'] = eval_result['acc_top1']
+            save_candidate[arch_name]['acc'] = eval_result['acc_top1']
 
         if ParallelEnv().local_rank == 0:
-            save_paht = candidate_path.replace('CVPR_2022_NAS_Track1_test', 'CVPR_2022_NAS_Track1_test_{}'.format(time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())))
-            with open(save_paht, 'w') as f:
-                json.dump(candidate_path, f)
+            save_path = candidate_path.replace('CVPR_2022_NAS_Track1_test', 'CVPR_2022_NAS_Track1_test_{}'.format(time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())))
+            with open(save_path, 'w') as f:
+                json.dump(save_candidate, f)
 
         return sample_result

@@ -1,6 +1,7 @@
 import random
 import logging
 import numpy as np
+import pdb 
 
 from collections import OrderedDict
 
@@ -29,7 +30,7 @@ class ResOFA(OFA):
                  ):
         super().__init__(model, run_config, distill_config, elastic_order, train_full)
         self.model.eval()
-        self._clear_search_space()
+        # self._clear_search_space() # delete clear search space 
         self.cand_cfg = candidate_config
         # self.cand_cfg = {
         #     'i': [224],  # image size
@@ -60,7 +61,7 @@ class ResOFA(OFA):
             else:
                 self.current_config[key] = v
 
-        self._broadcast_ss()
+        # self._broadcast_ss()
 
     def active_specific_subnet(self, img_size=None, arch_config: str = None):
         if img_size is None:
@@ -77,15 +78,20 @@ class ResOFA(OFA):
         self.current_config = OrderedDict()
         for key, v in self._ofa_layers.items():
             layer_id = int(key.split('.')[1])
-            if v:
-                if layer_id < len(arch_config[5:]):
-                    self.current_config[key] = {'expand_ratio': self.cand_cfg['c'][int(arch_config[5 + layer_id])-1]}
+            conv_name = key.split('.')[2]
+            if v and (conv_name.startswith('conv') or conv_name == 'downsample'):
+                if conv_name == 'conv0':
+                    ind = int(arch_config[5])
+                elif conv_name == 'conv1':
+                    ind = int(arch_config[6 + (layer_id - 1) * 2])
                 else:
-                    self.current_config[key] = {'expand_ratio': random.choice(self.cand_cfg['c'])}
+                    ind = int(arch_config[6 + (layer_id - 1) * 2 + 1])
+                if ind:
+                    self.current_config[key] = {'expand_ratio': self.cand_cfg['c'][ind - 1]}
             else:
                 self.current_config[key] = v
 
-        self._broadcast_ss()
+        # self._broadcast_ss()
 
     @property
     def gen_subnet_code(self):
@@ -111,8 +117,11 @@ class ResOFA(OFA):
 
     def _clear_search_space(self):
         """ find shortcut in model, and clear up the search space """
+        # pdb.set_trace()
         self.model.eval()
         _st_prog = dygraph2program(self.model, inputs=[2, 3, 224, 224], dtypes=[np.float32])
+
+        # find shortcut and set same config for the situation
         self._same_ss = check_search_space(GraphWrapper(_st_prog))
 
         self._same_ss = sorted(self._same_ss)
@@ -169,10 +178,12 @@ class ResOFA(OFA):
 
         for per_ss in self._same_ss:
             for ss in per_ss[1:]:
-                if 'expand_ratio' in self._ofa_layers[self._param2key[ss]]:
-                    self._ofa_layers[self._param2key[ss]].pop('expand_ratio')
-                elif 'channel' in self._ofa_layers[self._param2key[ss]]:
+                # if 'expand_ratio' in self._ofa_layers[self._param2key[ss]]:
+                #     self._ofa_layers[self._param2key[ss]].pop('expand_ratio')
+
+                if 'channel' in self._ofa_layers[self._param2key[ss]]:
                     self._ofa_layers[self._param2key[ss]].pop('channel')
+
                 if len(self._ofa_layers[self._param2key[ss]]) == 0:
                     self._ofa_layers.pop(self._param2key[ss])
 
