@@ -9,8 +9,6 @@ source activate pp
 
 JSON_PATH1=$1
 JSON_PATH2=$2
-JSON_PATH3=$3
-JSON_PATH4=$4
 
 # 为了优化速度问题，将数据集加载到内存中。
 mkdir -p /dev/shm/imagenet-mini/val 
@@ -42,30 +40,4 @@ python3 eval_supernet.py run \
   --log_freq 1 \
   --resume checkpoints/res48-depth \
   --json_path  $JSON_PATH2 \
-  --image_dir /dev/shm/imagenet-mini & 
-python3 eval_supernet.py run \
-  --backbone resnet48 \
-  --max_epoch 70 \
-  --batch_size 128 \
-  --lr 0.001 \
-  --warmup 5 \
-  --dyna_batch_size 2 \
-  --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-depth \
-  --log_freq 1 \
-  --resume checkpoints/res48-depth \
-  --json_path  $JSON_PATH3 \
-  --image_dir /dev/shm/imagenet-mini & 
-python3 eval_supernet.py run \
-  --backbone resnet48 \
-  --max_epoch 70 \
-  --batch_size 128 \
-  --lr 0.001 \
-  --warmup 5 \
-  --dyna_batch_size 2 \
-  --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-depth \
-  --log_freq 1 \
-  --resume checkpoints/res48-depth \
-  --json_path  $JSON_PATH4 \
-  --image_dir /dev/shm/imagenet-mini
+  --image_dir /dev/shm/imagenet-mini  
