@@ -111,12 +111,14 @@ class Convert:
                 if first_weight_layer_idx == -1:
                     first_weight_layer_idx = idx
         if getattr(self.context, 'channel', None) != None:
+            # channel search function check
             assert len(
                 self.context.channel
             ) == weight_layer_count, "length of channel must same as weight layer."
 
         for idx, layer in enumerate(model):
             if isinstance(layer, Conv2D):
+                # if current layer is Conv2d
                 attr_dict = layer.__dict__
                 key = attr_dict['_full_name']
 
@@ -132,6 +134,13 @@ class Convert:
 
                 self._change_name(layer, pd_ver, conv=True)
                 new_attr_dict = dict.fromkeys(new_attr_name, None)
+                '''
+                {
+                    stride/padding/dilation/groups/bias_attr
+                    weight_attr/data_format/padding_mode
+                    candidate_config = {'expand_ratio': self.context.expand_ratio}
+                }
+                '''
                 new_attr_dict['candidate_config'] = dict()
                 if pd_ver == 185:
                     new_attr_dict['num_channels'] = None
@@ -144,13 +153,16 @@ class Convert:
                 self.kernel_size = getattr(self.context, 'kernel_size', None)
 
                 # if the kernel_size of conv is 1, don't change it.
+                # compatible with old version paddle=1.8.5
                 fks = '_filter_size' if '_filter_size' in attr_dict.keys(
                 ) else '_kernel_size'
 
+                # get kernel size
                 ks = [attr_dict[fks]] if isinstance(
                     attr_dict[fks], numbers.Integral) else attr_dict[fks]
 
                 if self.kernel_size and int(ks[0]) != 1:
+                    # transform kernel is standard function in once for all
                     new_attr_dict['transform_kernel'] = True
                     new_attr_dict[fks[1:]] = max(self.kernel_size)
                     new_attr_dict['candidate_config'].update({
@@ -159,10 +171,13 @@ class Convert:
                 else:
                     new_attr_dict[fks[1:]] = attr_dict[fks]
 
+                # get inchannel and out channel 
                 in_key = '_num_channels' if '_num_channels' in attr_dict.keys(
                 ) else '_in_channels'
                 out_key = '_num_filters' if '_num_filters' in attr_dict.keys(
                 ) else '_out_channels'
+
+                # searching for expansion ratio 
                 if self.context.expand:
                     ### first super convolution
                     if idx == first_weight_layer_idx:
