@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import logging
+# import logging
 import numpy as np
 from collections import namedtuple
 import paddle
@@ -335,22 +334,24 @@ class OFA(OFABase):
             elif isinstance(v, list) or isinstance(v, set) or isinstance(v,
                                                                          tuple):
                 if sample_type == 'largest':
-                    sample_cands[k] = v[-1]
-                elif sample_type == 'smallest':
                     sample_cands[k] = v[0]
+                elif sample_type == 'smallest':
+                    sample_cands[k] = v[-1]
                 else:
                     if k not in task:
                         # sort and deduplication in candidate_config
                         # fixed candidate not in task_list
-                        sample_cands[k] = v[-1]
+                        sample_cands[k] = v[0]
                     else:
                         # phase == None -> all candidate; phase == number, append small candidate in each phase
                         # phase only affect last task in current task_list
-                        if phase != None and k == task[-1]:
-                            start = -(phase + 2)
+
+                        # 阶段有设置，同时k等于当前任务
+                        if phase != None and k == task[0]:
+                            start = (phase + 2)
                         else:
-                            start = 0
-                        sample_cands[k] = np.random.choice(v[start:])
+                            start = None # whole width list 
+                        sample_cands[k] = np.random.choice(v[:start])
 
         return sample_cands
 
@@ -384,15 +385,19 @@ class OFA(OFABase):
         """
         self.epoch = epoch
 
-    def _progressive_shrinking(self):
+    def _progressive_shrinking(self, sample_type='random'):
+        # pdb.set_trace()
         epoch = self._compute_epochs()
         phase_idx = None
+        print("##_## : ofa.py line 393:", self.elastic_order)
         if len(self.elastic_order) != 1:
             assert self.run_config.n_epochs is not None, \
                 "if not use set_task() to set current task, please set n_epochs in run_config " \
                 "for to compute which task in this epoch."
             self.task_idx, phase_idx = search_idx(epoch,
                                                   self.run_config.n_epochs)
+
+        # self.elastic_order = ['width'] 
         self.task = self.elastic_order[:self.task_idx + 1]
         if 'width' in self.task:
             ### change width in task to concrete config
@@ -401,7 +406,7 @@ class OFA(OFABase):
                 self.task.append('expand_ratio')
             if 'channel' in self._elastic_task:
                 self.task.append('channel')
-        return self._sample_config(task=self.task, phase=phase_idx)
+        return self._sample_config(task=self.task, sample_type=sample_type, phase=phase_idx)
 
     def calc_distill_loss(self):
         """
