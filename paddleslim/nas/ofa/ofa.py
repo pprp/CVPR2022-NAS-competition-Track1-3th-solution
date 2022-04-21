@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# import logging
+import logging
 import numpy as np
 from collections import namedtuple
 import paddle
@@ -338,6 +338,7 @@ class OFA(OFABase):
                 elif sample_type == 'smallest':
                     sample_cands[k] = v[-1]
                 else:
+                    print("line 341: ", k, task)
                     if k not in task:
                         # sort and deduplication in candidate_config
                         # fixed candidate not in task_list

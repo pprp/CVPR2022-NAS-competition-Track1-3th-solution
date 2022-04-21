@@ -24,9 +24,10 @@ from hnas.utils.yacs import CfgNode
 from hnas.models.builder import build_classifier
 
 
-def _loss_forward(self, input, tea_input, label=None):
-    if label is not None:
-        ret = paddle.nn.functional.cross_entropy(
+def _loss_forward(self, input, tea_input=None, label=None):
+    if tea_input is not None and label is not None:
+        # cross entropy + knowledge distillation
+        ce = paddle.nn.functional.cross_entropy(
             input,
             label,
             weight=self.weight,
@@ -36,7 +37,7 @@ def _loss_forward(self, input, tea_input, label=None):
             axis=self.axis,
             name=self.name)
 
-        mse = paddle.nn.functional.cross_entropy(
+        kd = paddle.nn.functional.cross_entropy(
             input,
             paddle.nn.functional.softmax(tea_input),
             weight=self.weight,
@@ -44,19 +45,33 @@ def _loss_forward(self, input, tea_input, label=None):
             reduction=self.reduction,
             soft_label=True,
             axis=self.axis)
-        # mse = paddle.nn.functional.mse_loss(input, tea_input)
-        return ret, mse
-    else:
-        ret = paddle.nn.functional.cross_entropy(
+        return ce, kd
+    elif tea_input is not None and label is None:
+        # inplace distillation
+        kd = paddle.nn.functional.cross_entropy(
             input,
-            tea_input,
+            paddle.nn.functional.softmax(tea_input),
+            weight=self.weight,
+            ignore_index=self.ignore_index,
+            reduction=self.reduction,
+            soft_label=True,
+            axis=self.axis)
+        return kd 
+    elif tea_input is None and label is not None:
+        # normal cross entropy 
+        ce = paddle.nn.functional.cross_entropy(
+            input,
+            label,
             weight=self.weight,
             ignore_index=self.ignore_index,
             reduction=self.reduction,
             soft_label=self.soft_label,
             axis=self.axis,
             name=self.name)
-        return ret
+        return ce
+    else:
+        raise "Not Implemented Loss."
+
 CrossEntropyLoss.forward = _loss_forward
 
 def _compute(self, pred, tea_pred, label=None, *args):
@@ -96,7 +111,7 @@ def run(
     pretrained='checkpoints/resnet48.pdparams',
     image_dir='/root/paddlejob/workspace/env_run/data/ILSVRC2012/',
     save_dir='checkpoints/res48-depth',
-    save_freq=5,
+    save_freq=20,
     log_freq=100,
     **kwargs
     ):
@@ -125,6 +140,7 @@ def main(cfg):
     cfg.lr = cfg.lr * cfg.batch_size * dist.get_world_size() / 256
     warmup_step = int(1281024 / (cfg.batch_size * dist.get_world_size())) * cfg.warmup
 
+    # data augmentation 
     transforms = Compose([
         MyRandomResizedCrop(cfg.image_size_list),
         RandomHorizontalFlip(),
@@ -137,30 +153,56 @@ def main(cfg):
     callbacks = [LRSchedulerM(), 
                  MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase)]
 
+    # build resnet48 and teacher net
     net = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=True)
     tnet = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=False)
     origin_weights = {}
     for name, param in net.named_parameters():
         origin_weights[name] = param
     
+    # convert resnet48 to supernet 
     sp_model = Convert(supernet(expand_ratio=[1.0])).convert(net)  # net转换成supernet
     utils.set_state_dict(sp_model, origin_weights)  # 重新对supernet加载数据
     del origin_weights
 
+    # set candidate config 
     cand_cfg = {
             'i': [224],  # image size
             'd': [(2, 5), (2, 5), (2, 8), (2, 5)],  # depth
             'k': [3],  # kernel size
             'c': [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7] # channel ratio
     }
-    ofa_net = ResOFA(sp_model,  
-                     distill_config=DistillConfig(teacher_model=tnet), 
+
+    default_run_config = {
+        'train_batch_size': cfg.batch_size,
+        'n_epochs': [[1], [2, 3], [4, 5]],
+        'total_images': 12,
+        'elastic_depth': (2, 3, 4, 5),
+        'dynamic_batch_size': [1, 1, 1],
+    }
+
+    default_distill_config = {
+        'lambda_distill': 0.5,
+        'teacher_model': tnet,
+        'mapping_layers': None,
+        'teacher_model_path': None,
+        'distill_fn': None,
+        'mapping_op': 'conv2d'
+    }
+
+    ofa_net = ResOFA(sp_model,
+                     run_config=RunConfig(**default_run_config),
+                     distill_config=DistillConfig(**default_distill_config),  # lambda_distill=1.0
                      candidate_config=cand_cfg,
                      block_conv_num=2)
+
+    # ofa_net.set_task(['depth', 'expand_ratio'])
     ofa_net.set_task('expand_ratio')
 
     run_config = {'dynamic_batch_size': cfg.dyna_batch_size}
     model = Trainer(ofa_net, cfg=run_config)
+
+    # calculate loss by ce 
     model.prepare(
         paddle.optimizer.Momentum(
             learning_rate=LinearWarmup(
