@@ -57,15 +57,16 @@ def _loss_forward(self, input, tea_input=None, label=None):
             soft_label=True,
             axis=self.axis)
         return kd 
-    elif tea_input is None and label is not None:
+    elif label is not None:
         # normal cross entropy 
+        # print("line 62: ", input.shape, label.shape)
         ce = paddle.nn.functional.cross_entropy(
             input,
             label,
             weight=self.weight,
             ignore_index=self.ignore_index,
             reduction=self.reduction,
-            soft_label=self.soft_label,
+            soft_label=False,
             axis=self.axis,
             name=self.name)
         return ce
@@ -173,13 +174,13 @@ def main(cfg):
             'c': [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7] # channel ratio
     }
 
-    default_run_config = {
-        'train_batch_size': cfg.batch_size,
-        'n_epochs': [[1], [2, 3], [4, 5]],
-        'total_images': 12,
-        'elastic_depth': (2, 3, 4, 5),
-        'dynamic_batch_size': [1, 1, 1],
-    }
+    # default_run_config = {
+    #     'train_batch_size': cfg.batch_size,
+    #     'n_epochs': [[1], [2, 3], [4, 5]],
+    #     'total_images': 12,
+    #     'elastic_depth': (2, 3, 4, 5),
+    #     'dynamic_batch_size': [1, 1, 1],
+    # }
 
     default_distill_config = {
         'lambda_distill': 0.5,
@@ -191,7 +192,7 @@ def main(cfg):
     }
 
     ofa_net = ResOFA(sp_model,
-                     run_config=RunConfig(**default_run_config),
+                    #  run_config=RunConfig(**default_run_config),
                      distill_config=DistillConfig(**default_distill_config),  # lambda_distill=1.0
                      candidate_config=cand_cfg,
                      block_conv_num=2)

@@ -338,7 +338,6 @@ class OFA(OFABase):
                 elif sample_type == 'smallest':
                     sample_cands[k] = v[-1]
                 else:
-                    print("line 341: ", k, task)
                     if k not in task:
                         # sort and deduplication in candidate_config
                         # fixed candidate not in task_list

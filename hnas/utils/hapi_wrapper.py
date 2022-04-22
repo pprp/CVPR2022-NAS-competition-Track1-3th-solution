@@ -139,8 +139,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         self.mode = 'train'
         inputs = to_list(inputs)
         self._input_info = _update_input_info(inputs)
-        labels = labels or []
-        labels = [to_variable(l) for l in to_list(labels)]
+        labels = to_variable(labels).squeeze(0)
         epoch = kwargs.get('epoch', None)
         self.epoch = epoch
         nBatch = kwargs.get('nBatch', None)
@@ -194,11 +193,11 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         metrics = []
         for metric in self.model._metrics:
-            metric_outs = metric.compute(*(to_list(output) + labels))
+            metric_outs = metric.compute(output, labels)
             m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
             metrics.append(m)
 
-        return ([to_numpy(l) for l in losses], metrics) if len(metrics) > 0 else [to_numpy(l) for l in losses]
+        return ([to_numpy(l) for l in [loss1]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss1]]
 
     def eval_batch(self, inputs, labels=None):
         self.model.network.eval()
@@ -414,14 +413,19 @@ class Trainer(Model):
                 if mode == 'train':
                     MyRandomResizedCrop.sample_image_size(step)
                     # call train_batch function
-                    # first is inputs, and second is label
-                    # kwargs = {epoch: nBatch: step}
-                    outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
+                    # normal training
+                    # outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
+                    #                                       data[len(self._inputs):],
+                    #                                       epoch=kwargs.get('epoch', None),
+                    #                                       nBatch=len(data_loader),
+                    #                                       step=step)
+                    outs = getattr(self, mode + '_batch_sandwich')(data[:len(self._inputs)],
                                                           data[len(self._inputs):],
                                                           epoch=kwargs.get('epoch', None),
                                                           nBatch=len(data_loader),
                                                           step=step)
-                    print("after progressive shrinking the net config: ", self.network.gen_subnet_code)
+                    if step % 100 == 0:
+                        print("after autoslim the net config: ", self.network.gen_subnet_code)
 
                 else:
                     outs = getattr(self, mode + '_batch')(data[:len(self._inputs)], data[len(self._inputs):])

@@ -892,6 +892,54 @@ class SuperBatchNorm(fluid.dygraph.BatchNorm):
         return dygraph_utils._append_activation_in_dygraph(
             batch_norm_out[0], act=self._act)
 
+class SuperSwitchBatchNorm(fluid.dygraph.BatchNorm):
+    """
+    Switchable BatchNorm Operation
+    """
+    def __init__(self,
+                 num_channels,
+                 act=None,
+                 is_test=False,
+                 momentum=0.9,
+                 epsilon=1e-05,
+                 param_attr=None,
+                 bias_attr=None,
+                 dtype='float32',
+                 data_layout='NCHW',
+                 in_place=False,
+                 moving_mean_name=None,
+                 moving_variance_name=None,
+                 do_model_average_for_mean_and_var=True,
+                 use_global_stats=False,
+                 trainable_statistics=False):
+        super(SuperSwitchBatchNorm, self).__init__(
+            num_channels, act, is_test, momentum, epsilon, param_attr,
+            bias_attr, dtype, data_layout, in_place, moving_mean_name,
+            moving_variance_name, do_model_average_for_mean_and_var,
+            use_global_stats, trainable_statistics)
+        self.c = [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7]
+
+    def forward(self, input):
+        feature_dim = int(input.shape[1])
+
+        weight = self.weight[:feature_dim]
+        bias = self.bias[:feature_dim]
+        mean = self._mean[:feature_dim]
+        variance = self._variance[:feature_dim]
+
+        mean_out = mean
+        variance_out = variance
+
+        attrs = ("momentum", self._momentum, "epsilon", self._epsilon,
+                 "is_test", not self.training, "data_layout", self._data_layout,
+                 "use_mkldnn", False, "fuse_with_relu", self._fuse_with_relu,
+                 "use_global_stats", self._use_global_stats,
+                 'trainable_statistics', self._trainable_statistics)
+        batch_norm_out = core.ops.batch_norm(
+            input, weight, bias, mean, variance, mean_out, variance_out, *attrs)
+        return dygraph_utils._append_activation_in_dygraph(
+            batch_norm_out[0], act=self._act)
+
 
 class SuperInstanceNorm(fluid.dygraph.InstanceNorm):
     """
