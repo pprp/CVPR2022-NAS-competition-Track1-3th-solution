@@ -15,11 +15,11 @@ python3 train_supernet.py run \
   --max_epoch 70 \
   --batch_size 256 \
   --lr 0.001 \
-  --warmup 1 \
-  --dyna_batch_size 2 \
+  --warmup 5 \
+  --dyna_batch_size 4 \
   --pretrained checkpoints/resnet48.pdparams \
   --save_dir checkpoints/res48-ofa \
-  --log_freq 1 \
+  --log_freq 10 \
   --image_dir /data/public/imagenet2012
   # --resume checkpoints/res48-depth \
 
