@@ -99,13 +99,21 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         for i in range(self.dyna_bs):
             subnet_seed = int('%d%.1d' % (epoch * nBatch + step, i))
             np.random.seed(subnet_seed)
-            self.model.network.active_subnet(MyRandomResizedCrop.current_size)
+
+            # sample a subnet for training 
+            # self.model.network.active_subnet(MyRandomResizedCrop.current_size)
+
+            # once for all
+            current_config = self.model.network._progressive_shrinking("random")
+            self.model.network.set_net_config(current_config)
+
             # print(self.model.network.gen_subnet_code)
             if self._nranks > 1:
                 outputs = self.ddp_model.forward(*[to_variable(x) for x in inputs])
             else:
                 outputs = self.model.network.forward(*[to_variable(x) for x in inputs])
 
+            # change this place to process the output of network 
             losses = self.model._loss(*(to_list(outputs) + labels))
             losses = to_list(losses)
             final_loss = fluid.layers.sum(losses)
@@ -117,6 +125,76 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         metrics = []
         for metric in self.model._metrics:
             metric_outs = metric.compute(*(to_list(outputs) + labels))
+            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
+            metrics.append(m)
+
+        return ([to_numpy(l) for l in losses], metrics) if len(metrics) > 0 else [to_numpy(l) for l in losses]
+
+    # TODO multi device in dygraph mode not implemented at present time
+    def train_batch_sandwich(self, inputs, labels=None, **kwargs):
+        # follow sandwich rule in autoslim
+        assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
+        # self.model.network.train()
+        self.model.network.model.train()
+        self.mode = 'train'
+        inputs = to_list(inputs)
+        self._input_info = _update_input_info(inputs)
+        labels = labels or []
+        labels = [to_variable(l) for l in to_list(labels)]
+        epoch = kwargs.get('epoch', None)
+        self.epoch = epoch
+        nBatch = kwargs.get('nBatch', None)
+        step = kwargs.get('step', None)
+
+        # set seed 
+        subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
+        np.random.seed(subnet_seed)
+
+        # sample largest subnet as teacher net 
+        largest_config = self.model.network.active_autoslim_subnet(sample_type="largest")
+        self.model.network.set_net_config(largest_config)
+        if self._nranks > 1:
+            teacher_output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+        else:
+            teacher_output = self.model.network.forward(*[to_variable(x) for x in inputs])
+        ### normal forward with gt 
+        loss1 = self.model._loss(input=teacher_output[0], tea_input=None, label=labels)
+        loss1.backward()
+
+        # sample smallest subnet as student net and perform distill operation
+        smallest_config = self.model.network.active_autoslim_subnet(sample_type="smallest")
+        self.model.network.set_net_config(smallest_config)
+        ### forward with inplace distillation
+        if self._nranks > 1:
+            output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+        else:
+            output = self.model.network.forward(*[to_variable(x) for x in inputs])
+        loss2 = self.model._loss(input=output[0],tea_input=teacher_output, label=None)
+        loss2.backward()
+
+        # sample random subnets as student net and perform distill operation
+        for _ in range(self.dyna_bs-2): 
+            random_config = self.model.network.active_autoslim_subnet(sample_type="random")
+            self.model.network.set_net_config(random_config)
+            if self._nranks > 1:
+                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+            else:
+                output = self.model.network.forward(*[to_variable(x) for x in inputs])
+            loss3 = self.model._loss(input=output[0],tea_input=teacher_output, label=None)
+            loss3.backward()
+
+        # change this place to process the output of network 
+        # losses = self.model._loss(*(to_list(outputs) + labels))
+        # losses = to_list(loss_list)
+        # final_loss = fluid.layers.sum(losses)
+        # final_loss.backward()
+
+        self.model._optimizer.step()
+        self.model._optimizer.clear_grad()
+
+        metrics = []
+        for metric in self.model._metrics:
+            metric_outs = metric.compute(*(to_list(output) + labels))
             m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
             metrics.append(m)
 
@@ -272,6 +350,7 @@ class Trainer(Model):
         cbks.on_begin('train')
         for epoch in range(self.start_epoch, epochs):
             cbks.on_epoch_begin(epoch)
+            self.network.set_epoch(epoch)
             logs = self._run_one_epoch(train_loader, cbks, 'train', epoch=epoch)
             cbks.on_epoch_end(epoch, logs)
 
@@ -293,7 +372,15 @@ class Trainer(Model):
         self._test_dataloader = None
 
     def train_batch(self, inputs, labels=None, **kwargs):
+        # call the function train_batch of adapter
         loss = self._adapter.train_batch(inputs, labels, **kwargs)
+        if fluid.in_dygraph_mode() and self._input_info is None:
+            self._update_inputs()
+        return loss
+
+    def train_batch_sandwich(self, inputs, labels=None, **kwargs):
+        # call the function train_batch of adapter
+        loss = self._adapter.train_batch_sandwich(inputs, labels, **kwargs)
         if fluid.in_dygraph_mode() and self._input_info is None:
             self._update_inputs()
         return loss
@@ -326,11 +413,16 @@ class Trainer(Model):
             if mode != 'predict':
                 if mode == 'train':
                     MyRandomResizedCrop.sample_image_size(step)
+                    # call train_batch function
+                    # first is inputs, and second is label
+                    # kwargs = {epoch: nBatch: step}
                     outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
                                                           data[len(self._inputs):],
                                                           epoch=kwargs.get('epoch', None),
                                                           nBatch=len(data_loader),
                                                           step=step)
+                    print("after progressive shrinking the net config: ", self.network.gen_subnet_code)
+
                 else:
                     outs = getattr(self, mode + '_batch')(data[:len(self._inputs)], data[len(self._inputs):])
                 if self._metrics and self._loss:
