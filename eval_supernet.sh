@@ -4,7 +4,10 @@
 #SBATCH --gres=gpu:1   # 需要使用的卡数
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
-module load anaconda/2020.11 cuda/10.2 cudnn/7.6.5.32_cuda10.2 nccl/2.9.6-1_cuda10.2
+module load cuda/11.0
+module load anaconda/2020.11 
+module load nccl/2.9.6-1_cuda11.0
+module load cudnn/8.1.1.33_CUDA11.0
 source activate pp
 
 JSON_PATH1=$1
@@ -22,8 +25,8 @@ python3 eval_supernet.py run \
   --warmup 5 \
   --dyna_batch_size 2 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-depth \
+  --save_dir checkpoints/res48-autoslim \
   --log_freq 1 \
-  --resume checkpoints/res48-depth \
+  --resume checkpoints/res48-autoslim \
   --json_path  $JSON_PATH1 \
   --image_dir /dev/shm/imagenet-mini 

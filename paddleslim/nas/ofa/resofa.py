@@ -30,7 +30,7 @@ class ResOFA(OFA):
                  ):
         super().__init__(model, run_config, distill_config, elastic_order, train_full)
         self.model.eval()
-        self._clear_search_space() # delete clear search space 
+        # self._clear_search_space() # delete clear search space 
         self.cand_cfg = candidate_config
         # self.cand_cfg = {
         #     'i': [224],  # image size

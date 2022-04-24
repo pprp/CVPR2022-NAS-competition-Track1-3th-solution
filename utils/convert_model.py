@@ -11,18 +11,33 @@ teacher network:
     # ValueError: ofa_teacher_model.model.blocks.0.conv.weight is not found in the providing file.
 '''
 
-final_path = "checkpoints/res48-depth/final_multigpu.pdparams"
-save_path = "checkpoints/res48-depth/final.pdparams"
+def convert_multi2single(final_path, save_path):
+    old = paddle.load(final_path)
+    new = dict()
 
+    for k, v in old.items():
+        # delete _layers in multi gpu mode 
+        if "_layers" in k:
+            new[k.replace("._layers", "")] = v 
+        else:
+            new[k] = v
 
-old = paddle.load(final_path)
-new = dict()
+    paddle.save(new, save_path)
 
-for k, v in old.items():
-    # delete _layers in multi gpu mode 
-    if "_layers" in k:
-        new[k.replace("._layers", "")] = v 
-    else:
-        new[k] = v
+def convert_single2multi(final_path, save_path):
+    old = paddle.load(final_path)
+    new = dict()
 
-paddle.save(new, save_path)
+    for k, v in old.items():
+        # delete _layers in multi gpu mode 
+        if "_layers" in k:
+            new[k.replace("model.blocks", "model._layers.blocks")] = v 
+        else:
+            new[k] = v
+
+    paddle.save(new, save_path)
+
+if __name__ == "__main__":
+    final_path = "checkpoints/res48-autoslim/final_single.pdparams"
+    save_path = "checkpoints/res48-autoslim/final.pdparams"
+    convert_multi2single(final_path, save_path)
