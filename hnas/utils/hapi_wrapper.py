@@ -288,7 +288,7 @@ class Trainer(Model):
             eval_data=None,
             batch_size=1,
             epochs=1,
-            eval_freq=1,
+            eval_freq=4,
             log_freq=10,
             save_dir=None,
             save_freq=1,
