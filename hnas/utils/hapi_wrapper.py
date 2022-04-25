@@ -106,7 +106,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             # once for all
             # current_config = self.model.network._progressive_shrinking("random")
             # self.model.network.set_net_config(current_config)
-            self.model.network.active_subnet.active_progressive_subnet()
+            self.model.network.active_progressive_subnet()
 
             # print(self.model.network.gen_subnet_code)
             if self._nranks > 1:
