@@ -27,7 +27,7 @@ do
 
   if [ $phase -eq 1 ]; then
     max_epoch=2
-    warmup=0
+    warmup=1
     dynamic_batch_size=2
     lr=0.001
   elif [ $phase -eq 2 ]; then

@@ -26,20 +26,21 @@ do
   fi
 
   if [ $phase -eq 1 ]; then
-    max_epoch=1
-    warmup=0
+    max_epoch=2
+    warmup=1
     dynamic_batch_size=2
     lr=0.001
   elif [ $phase -eq 2 ]; then
-    max_epoch=2
-    warmup=0
+    max_epoch=3
+    warmup=1
     dynamic_batch_size=2
     lr=0.002
   else
-    max_epoch=3
-    warmup=0
+    max_epoch=4
+    warmup=1
     dynamic_batch_size=2
     lr=0.003
+  fi
 
   python3 train_supernet.py run \
   --backbone resnet48 \
@@ -70,38 +71,39 @@ do
   fi
 
   if [ $phase -eq 1 ]; then
-    max_epoch=4
-    warmup=0
+    max_epoch=5
+    warmup=1
     dynamic_batch_size=4
     lr=0.001
   elif [ $phase -eq 2 ]; then
-    max_epoch=5
-    warmup=0
+    max_epoch=6
+    warmup=1
     dynamic_batch_size=4
     lr=0.001
 
   elif [ $phase -eq 3 ]; then
-    max_epoch=6
-    warmup=0
+    max_epoch=7
+    warmup=1
     dynamic_batch_size=4
     lr=0.002
 
   elif [ $phase -eq 4 ]; then
-    max_epoch=7
-    warmup=0
+    max_epoch=8
+    warmup=1
     dynamic_batch_size=4
     lr=0.002
 
   elif [ $phase -eq 5 ]; then
-    max_epoch=8
-    warmup=0
+    max_epoch=9
+    warmup=1
     dynamic_batch_size=4
     lr=0.003
   else
     max_epoch=9
-    warmup=0
+    warmup=1
     dynamic_batch_size=4
     lr=0.003
+  fi
 
 
   python3 train_supernet.py run \
