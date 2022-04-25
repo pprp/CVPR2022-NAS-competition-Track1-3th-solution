@@ -163,7 +163,7 @@ def main(cfg):
         origin_weights[name] = param
 
     # convert resnet48 to supernet
-    sp_model = Convert(supernet(expand_ratio=[1.0])).convert(net)  # net转换成supernet
+    sp_model = Convert(supernet(expand_ratio=[1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7])).convert(net)  # net转换成supernet
     utils.set_state_dict(sp_model, origin_weights)  # 重新对supernet加载数据
     del origin_weights
 

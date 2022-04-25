@@ -58,6 +58,9 @@ class ResOFA(OFA):
             self.act_im_size = random.choice(self.cand_cfg['i'])
         else:
             self.act_im_size = img_size
+        for k, v in self._ofa_layers.items():
+            if 'expand_ratio' in v:
+                v['expand_ratio'] = sorted(v['expand_ratio'], reverse=True)
         if self.task == 'depth':
             self.act_depth_list = []
             for i, d_cfg, in enumerate(self.cand_cfg['d']):
@@ -67,10 +70,10 @@ class ResOFA(OFA):
                 else:
                     s = e - 1 * (self.phase or 3)
                 self.act_depth_list.append(random.randint(s, e))
-            self.current_config = self._sample_config([self.task], phase=self.phase)
+            self.current_config = self._sample_config([self.task], phase=self.phase - 1)
         elif self.task == 'expand_ratio':
             self.act_depth_list = [random.randint(s, e) for s, e in self.cand_cfg['d']]
-            self.current_config = self._sample_config([self.task], phase=self.phase)
+            self.current_config = self._sample_config([self.task], phase=self.phase - 1)
         else:
             pass
 

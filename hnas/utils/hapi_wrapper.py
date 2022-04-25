@@ -108,7 +108,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             # self.model.network.set_net_config(current_config)
             self.model.network.active_progressive_subnet()
 
-            # print(self.model.network.gen_subnet_code)
             if self._nranks > 1:
                 outputs = self.ddp_model.forward(*[to_variable(x) for x in inputs])
             else:
@@ -415,18 +414,18 @@ class Trainer(Model):
                     MyRandomResizedCrop.sample_image_size(step)
                     # call train_batch function
                     # normal training
-                    # outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
-                    #                                       data[len(self._inputs):],
-                    #                                       epoch=kwargs.get('epoch', None),
-                    #                                       nBatch=len(data_loader),
-                    #                                       step=step)
-                    outs = getattr(self, mode + '_batch_sandwich')(data[:len(self._inputs)],
+                    outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
                                                           data[len(self._inputs):],
                                                           epoch=kwargs.get('epoch', None),
                                                           nBatch=len(data_loader),
                                                           step=step)
-                    if step % 100 == 0:
-                        print("after autoslim the net config: ", self.network.gen_subnet_code)
+                    # outs = getattr(self, mode + '_batch_sandwich')(data[:len(self._inputs)],
+                    #                                       data[len(self._inputs):],
+                    #                                       epoch=kwargs.get('epoch', None),
+                    #                                       nBatch=len(data_loader),
+                    #                                       step=step)
+                    # if step % 100 == 0:
+                    #     print("after autoslim the net config: ", self.network.gen_subnet_code)
 
                 else:
                     outs = getattr(self, mode + '_batch')(data[:len(self._inputs)], data[len(self._inputs):])
