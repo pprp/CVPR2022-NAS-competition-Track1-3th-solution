@@ -56,10 +56,10 @@ class MyModelCheckpoint(callbacks.ModelCheckpoint):
             return pickle.load(f) if six.PY2 else pickle.load(f, encoding='latin1')
         
     def on_train_begin(self, logs=None):
-        if self.phase is not None:
-            path = '{}/final'.format(self.phase)
-            print('Phase: load checkpoint at {}'.format(os.path.abspath(path)))
-            self.model.load(path, reset_optimizer=True)
+        # if self.phase is not None:
+        #     path = '{}/final'.format(self.phase)
+        #     print('Phase: load checkpoint at {}'.format(os.path.abspath(path)))
+        #     self.model.load(path, reset_optimizer=True)
 
         if self.resume is not None:
             path = '{}/final'.format(self.resume)
