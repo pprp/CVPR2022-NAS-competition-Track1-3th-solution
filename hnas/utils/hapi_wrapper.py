@@ -171,10 +171,14 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         loss2 = self.model._loss(input=output[0],tea_input=teacher_output, label=None)
         loss2.backward()
 
-        # sample random subnets as student net and perform distill operation
-        for _ in range(self.dyna_bs-2): 
-            random_config = self.model.network.active_autoslim_subnet(sample_type="random")
-            self.model.network.set_net_config(random_config)
+        # sample fair subnets as student net and perform distill operation
+        fair_configs = self.model.network.generate_fairnas_configs()
+        # ['1557263626762656735323637332626212522272004777000000', '1557255636666666231343533352125252627212001757000000', '1557242676263616137363734312321272325222002747000000', '1557271646161636533373331342422232224262005717000000', '1557227616364626432353235322224242426242006727000000', '1557216656465646334333136372523262121232003767000000', '1557234666567676636313432362727222723252007737000000']
+
+        for i in range(len(fair_configs)): 
+            fconfig = self.model.network.active_specific_subnet(arch_config=fair_configs[i])
+            self.model.network.set_net_config(fconfig)
+            
             if self._nranks > 1:
                 output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
             else:
