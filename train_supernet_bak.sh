@@ -34,7 +34,7 @@ do
     max_epoch=10
     warmup=1
     dynamic_batch_size=2
-    lr=0.002
+    lr=0.001
   else
     max_epoch=26
     warmup=1
@@ -84,24 +84,24 @@ do
     max_epoch=36
     warmup=1
     dynamic_batch_size=4
-    lr=0.002
+    lr=0.001
 
   elif [ $phase -eq 4 ]; then
     max_epoch=44
     warmup=1
     dynamic_batch_size=4
-    lr=0.002
+    lr=0.001
 
   elif [ $phase -eq 5 ]; then
     max_epoch=52
     warmup=1
     dynamic_batch_size=4
-    lr=0.003
+    lr=0.001
   else
     max_epoch=60
     warmup=1
     dynamic_batch_size=4
-    lr=0.003
+    lr=0.001
 
 
   python3 train_supernet.py run \

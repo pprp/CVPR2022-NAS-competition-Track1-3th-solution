@@ -75,9 +75,10 @@ class MyModelCheckpoint(callbacks.ModelCheckpoint):
             path = '{}/{}'.format(self.save_dir, epoch)
             print('MY: save checkpoint at {}'.format(os.path.abspath(path)))
             self.model.save(path)
-        path = '{}/final'.format(self.save_dir)
-        print('MY: save checkpoint at {}'.format(os.path.abspath(path)))
-        self.model.save(path, training=True)
+        if self._is_save():
+            path = '{}/final'.format(self.save_dir)
+            print('MY: save checkpoint at {}'.format(os.path.abspath(path)))
+            self.model.save(path, training=True)
 
 
 class MyModelCheckpoint2(callbacks.ModelCheckpoint):

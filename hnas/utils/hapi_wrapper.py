@@ -113,8 +113,15 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             else:
                 outputs = self.model.network.forward(*[to_variable(x) for x in inputs])
 
+            if len(outputs) == 2:
+                # training mode
+                losses = self.model._loss(*(to_list(outputs) + labels))
+            else:
+                # eval mode
+                losses = self.model._loss(outputs, tea_input=None, label=labels)
+
             # change this place to process the output of network
-            losses = self.model._loss(*(to_list(outputs) + labels))
+            # losses = self.model._loss(*(to_list(outputs) + labels))
             losses = to_list(losses)
             final_loss = fluid.layers.sum(losses)
             final_loss.backward()
@@ -210,7 +217,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         outputs = self.model.network.forward(*[to_variable(x) for x in inputs])
         if self.model._loss:
-            losses = self.model._loss(*(to_list(outputs) + labels))
+            # losses = self.model._loss(*(to_list(outputs) + labels))
+            losses = self.model._loss(outputs, tea_input=None, label=labels[0])
             losses = to_list(losses)
 
         if self._nranks > 1:
