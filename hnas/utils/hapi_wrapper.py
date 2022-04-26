@@ -532,7 +532,7 @@ class Trainer(Model):
             batch_size=256,
             log_freq=10,
             verbose=1,
-            num_workers=8,
+            num_workers=2,
             callbacks=None,
             json_path=None):
 
@@ -582,6 +582,10 @@ class Trainer(Model):
 
             # print(f"before active: {config['arch']}")
             self.network.active_specific_subnet(224, config['arch'])
+
+            # bn calibration
+            self.network.bn_calibration(eval_loader)
+
             # print(f"after active: {self.network.gen_subnet_code}")
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
             

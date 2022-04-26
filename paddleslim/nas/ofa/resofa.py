@@ -14,6 +14,9 @@ from ...core import GraphWrapper, dygraph2program
 from .get_sub_model import get_prune_params_config, prune_params, check_search_space
 from ...common import get_logger
 import functools
+import paddle.nn as nn
+from paddle.nn.initializer import Constant
+from paddle.fluid.layers.utils import flatten
 
 _logger = get_logger(__name__, level=logging.INFO)
 
@@ -242,3 +245,30 @@ class ResOFA(OFA):
             return stu_out, teacher_output
         else:
             return stu_out
+
+    def bn_calibration_init(self, m):
+        if isinstance(m, nn.BatchNorm2D) and getattr(m, 'tracking_running_stats', False):
+            # reset all values 
+            Constant(0)(m._mean)
+            Constant(1)(m._variance)
+            if m.bias is not None:
+                Constant(0.0)(m.bias)
+
+            # nn.Layer.training flag 
+            m.training=True 
+            #if cumulative_bn_stats:
+            m.momentum = None
+    
+    def bn_calibration(self, dataloader, max_iter=10):
+        # init bn
+        self.model.apply(self.bn_calibration_init)
+
+        # calibrate bn
+        for step, data in enumerate(dataloader):
+            print("calibrating bn.................")
+            if step > max_iter:
+                break 
+            x = data[0]
+
+            # forward for max_iter         
+            self.forward(x)
