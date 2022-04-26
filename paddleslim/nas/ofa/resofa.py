@@ -259,13 +259,16 @@ class ResOFA(OFA):
             #if cumulative_bn_stats:
             m.momentum = None
     
-    def bn_calibration(self, train_loader, max_iter=10):
+    def bn_calibration(self, dataloader, max_iter=10):
+        # init bn
         self.model.apply(self.bn_calibration_init)
 
-        for step, data in enumerate(train_loader):
+        # calibrate bn
+        for step, data in enumerate(dataloader):
+            print("calibrating bn.................")
             if step > max_iter:
                 break 
             x = data[0]
 
             # forward for max_iter         
-            self.model.forward(x)
+            self.forward(x)
