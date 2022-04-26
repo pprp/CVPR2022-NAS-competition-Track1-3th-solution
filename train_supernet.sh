@@ -1,10 +1,7 @@
 #!/bin/bash
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
-module load cuda/11.0
-module load anaconda/2020.11 
-module load nccl/2.9.6-1_cuda11.0
-module load cudnn/8.1.1.33_CUDA11.0
+module load anaconda/2020.11 cuda/11.1 cudnn/8.2.1_cuda11.x nccl/2.11.4-1_cuda11.1
 
 source activate pp
 
@@ -22,9 +19,9 @@ python3 train_supernet.py run \
   --warmup 5 \
   --dyna_batch_size 4 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-ofa \
+  --save_dir checkpoints/res48-fairnas \
   --log_freq 10 \
-  --image_dir /dev/shm/imagenet2012 \
-  --resume checkpoints/res48-ofa \
+  --image_dir /data/public/imagenet2012 \
+  # --resume checkpoints/res48-ofa \
 
 

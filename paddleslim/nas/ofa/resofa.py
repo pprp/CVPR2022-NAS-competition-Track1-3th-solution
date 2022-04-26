@@ -269,7 +269,7 @@ class ResOFA(OFA):
             self.forward(x)
 
     def generate_fairnas_configs(self):
-        self.candidate_ratio = [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7]
+        self.candidate_ratio = [1,2,3,4,5,6,7]
 
         def convert_list2str(lst):
             result_str = ""
@@ -281,7 +281,7 @@ class ResOFA(OFA):
         depth_list = []
         depth_range = [(2,5), (2,5), (2,8), (2,5)]
         for i in range(len(depth_range)):
-            depth_list.append(random.randint(depth_range[i]))
+            depth_list.append(random.randint(depth_range[i][0],depth_range[i][1]))
 
         # sample ratio according to depth 
         ratio_list = []
@@ -294,7 +294,7 @@ class ResOFA(OFA):
             for j in range(depth_range[i][1]): # 5 5 8 5 
                 if j < depth_stage:
                     ratio_list.append(random.sample(self.candidate_ratio, len(self.candidate_ratio)))
-                    ratio_list.append([sc_channel] * len(self.candidate_ratio))
+                    ratio_list.append(sc_channel * len(self.candidate_ratio))
                 else:
                     ratio_list.append([0] * len(self.candidate_ratio))
                     ratio_list.append([0] * len(self.candidate_ratio))
