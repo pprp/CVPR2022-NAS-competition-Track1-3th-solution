@@ -288,7 +288,7 @@ class Trainer(Model):
             eval_data=None,
             batch_size=1,
             epochs=1,
-            eval_freq=4,
+            eval_freq=5,
             log_freq=10,
             save_dir=None,
             save_freq=1,
@@ -414,16 +414,16 @@ class Trainer(Model):
                     MyRandomResizedCrop.sample_image_size(step)
                     # call train_batch function
                     # normal training
-                    # outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
-                    #                                       data[len(self._inputs):],
-                    #                                       epoch=kwargs.get('epoch', None),
-                    #                                       nBatch=len(data_loader),
-                    #                                       step=step)
-                    outs = getattr(self, mode + '_batch_sandwich')(data[:len(self._inputs)],
+                    outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
                                                           data[len(self._inputs):],
                                                           epoch=kwargs.get('epoch', None),
                                                           nBatch=len(data_loader),
                                                           step=step)
+                    # outs = getattr(self, mode + '_batch_sandwich')(data[:len(self._inputs)],
+                    #                                       data[len(self._inputs):],
+                    #                                       epoch=kwargs.get('epoch', None),
+                    #                                       nBatch=len(data_loader),
+                    #                                       step=step)
                     if step % 100 == 0:
                         print("after autoslim the net config: ", self.network.gen_subnet_code)
 
