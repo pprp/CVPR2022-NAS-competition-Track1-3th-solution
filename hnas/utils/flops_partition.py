@@ -22,6 +22,7 @@ class FlopsPartition(object):
     def get_arch_flops(self, arch):
         net = Model(arch=arch, block='basic')
         flops = paddle.flops(net, [1, 3, 224, 224])
+        del net
         return flops
 
     def get_arch_partition_num(self, arch):

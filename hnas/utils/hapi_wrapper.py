@@ -2,6 +2,7 @@ import warnings
 import random
 import numpy as np
 import json
+import gc
 
 import paddle
 import paddle.distributed as dist
@@ -257,6 +258,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             self.model.network.set_net_config(self.model.network.current_config)
             stu_output = self.one_forward(inputs)
             stu_acc = self.get_acc(stu_output, labels)
+            del stu_output
 
             # 2.获取当前子网所在计算量分区
             stu_arch = self.model.network.gen_subnet_code
@@ -276,6 +278,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
                 teacher_arch, stu_arch = stu_arch, teacher_arch
                 p_info['teacher_arch'] = teacher_arch
 
+                del tea_output
                 current_config = self.model.network.active_specific_subnet(arch_config=teacher_arch)
                 self.model.network.set_net_config(current_config)
                 tea_output = self.one_forward(inputs)
@@ -291,6 +294,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             output = self.one_forward(inputs)
             loss2 = self.model._loss(input=output[0], tea_input=tea_output[0], label=None)
             loss2.backward()
+            del tea_output
+            gc.collect()
 
         # change this place to process the output of network
         # losses = self.model._loss(*(to_list(outputs) + labels))
@@ -306,6 +311,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             metric_outs = metric.compute(output[0], labels)
             m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
             metrics.append(m)
+
+        del output
 
         return ([to_numpy(l) for l in [loss2]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss2]]
 
