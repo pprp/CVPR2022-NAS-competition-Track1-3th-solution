@@ -215,16 +215,16 @@ class ResOFA(OFA):
                 tmp_same_ss.append(per_ss)
         self._same_ss = tmp_same_ss
 
-        for per_ss in self._same_ss:
-            for ss in per_ss[1:]:
-                # if 'expand_ratio' in self._ofa_layers[self._param2key[ss]]:
-                #     self._ofa_layers[self._param2key[ss]].pop('expand_ratio')
-
-                if 'channel' in self._ofa_layers[self._param2key[ss]]:
-                    self._ofa_layers[self._param2key[ss]].pop('channel')
-
-                if len(self._ofa_layers[self._param2key[ss]]) == 0:
-                    self._ofa_layers.pop(self._param2key[ss])
+        # for per_ss in self._same_ss:
+        #     for ss in per_ss[1:]:
+        #         # if 'expand_ratio' in self._ofa_layers[self._param2key[ss]]:
+        #         #     self._ofa_layers[self._param2key[ss]].pop('expand_ratio')
+        #
+        #         if 'channel' in self._ofa_layers[self._param2key[ss]]:
+        #             self._ofa_layers[self._param2key[ss]].pop('channel')
+        #
+        #         if len(self._ofa_layers[self._param2key[ss]]) == 0:
+        #             self._ofa_layers.pop(self._param2key[ss])
 
     def forward(self, x):
         teacher_output = None
