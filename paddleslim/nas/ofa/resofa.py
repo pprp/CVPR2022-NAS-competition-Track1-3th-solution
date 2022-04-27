@@ -285,12 +285,13 @@ class ResOFA(OFA):
 
         # sample ratio according to depth 
         ratio_list = []
-        ratio_list.append(random.sample(self.candidate_ratio, len(self.candidate_ratio))) # stem conv 
+        first_stem = random.sample(self.candidate_ratio, 1)
+        ratio_list.append(first_stem * len(self.candidate_ratio)) # stem conv 
         for i in range(len(depth_range)):
             # stage i = 0,1,2,3 
             depth_stage = depth_list[i]
             # sample the second ratio for build_ss (shortcut)
-            sc_channel = random.sample(self.candidate_ratio, 1)
+            sc_channel = first_stem if i == 0 else random.sample(self.candidate_ratio, 1)
             for j in range(depth_range[i][1]): # 5 5 8 5 
                 if j < depth_stage:
                     ratio_list.append(random.sample(self.candidate_ratio, len(self.candidate_ratio)))
