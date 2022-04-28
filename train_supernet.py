@@ -23,7 +23,6 @@ import paddle.distributed as dist
 from hnas.utils.yacs import CfgNode
 from hnas.models.builder import build_classifier
 
-
 def _loss_forward(self, input, tea_input=None, label=None):
     if tea_input is not None and label is not None:
         # cross entropy + knowledge distillation
@@ -102,7 +101,7 @@ def run(
     image_size='224',
     max_epoch=120,
     lr=0.0025,
-    weight_decay=0,
+    weight_decay=0.,
     momentum=0.9,
     batch_size=80,
     dyna_batch_size=4,
@@ -153,7 +152,8 @@ def main(cfg):
     train_set = DatasetFolder(os.path.join(cfg.image_dir, 'train'), transform=transforms)
     val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
     callbacks = [LRSchedulerM(),
-                 MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase)]
+                 MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase),
+                 paddle.callbacks.VisualDL(log_dir='./visualdl_log'),]
 
     # build resnet48 and teacher net
     net = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=True)
@@ -194,12 +194,10 @@ def main(cfg):
 
     ofa_net = ResOFA(sp_model,
                     #  run_config=RunConfig(**default_run_config),
-                     distill_config=DistillConfig(**default_distill_config),  # lambda_distill=1.0
+                     distill_config=DistillConfig(**default_distill_config), # lambda_distill=1.0
                      candidate_config=cand_cfg,
                      block_conv_num=2)
 
-    # ofa_net.set_task(['depth', 'expand_ratio'])
-    # ofa_net.set_task('expand_ratio')
     ofa_net.set_task(cfg.task, cfg.phase)
 
     run_config = {'dynamic_batch_size': cfg.dyna_batch_size}
@@ -231,7 +229,7 @@ def main(cfg):
         callbacks=callbacks,
     )
 
-    model.evaluate(val_set, batch_size=cfg.batch_size, num_workers=1, eval_sample_num=10)
+    model.evaluate(val_set, batch_size=cfg.batch_size, num_workers=1, eval_sample_num=3)
 
 
 if __name__ == '__main__':

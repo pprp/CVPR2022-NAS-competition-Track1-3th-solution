@@ -66,8 +66,12 @@ class MyModelCheckpoint(callbacks.ModelCheckpoint):
             print('Resume: load checkpoint at {}'.format(os.path.abspath(path)))
             opt_path = path + ".pdopt"
             optim_state = self.load_state_from_path(opt_path)
-            self.model.start_epoch = optim_state['epoch'] + 1
-            print('start epoch: ', self.model.start_epoch)
+            if optim_state is not None:
+                # first resume is None
+                self.model.start_epoch = optim_state['epoch']
+                print('start epoch: ', self.model.start_epoch)
+            else:
+                print("first run and no optimizer state dict")
             self.model.load(path)
 
     def on_epoch_end(self, epoch, logs=None):

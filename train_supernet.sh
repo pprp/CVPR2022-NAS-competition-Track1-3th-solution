@@ -16,113 +16,19 @@ source activate pp
 # mkdir -p /dev/shm/imagenet2012
 # tar -kxf /data/public/imagenet2012/train.tar -C /dev/shm/imagenet2012 & tar -kxf /data/public/imagenet2012/val.tar -C /dev/shm/imagenet2012 
 
-image_dir=/dev/shm/imagenet2012
+IMAGEDIR=/data/public/imagenet-mini
 # 此处可填写运行程序的命令
-
-depth_phase_num=3
-for ((phase=1; phase<=$depth_phase_num; phase++))
-do
-  save_dir=checkpoints/res48_ofa_depth_$phase
-
-  if [ $phase -eq 1 ]; then
-    resume=None
-  else
-    resume=checkpoints/res48_ofa_depth_$(($phase-1))
-  fi
-
-  if [ $phase -eq 1 ]; then
-    max_epoch=2
-    warmup=1
-    dynamic_batch_size=2
-    lr=0.001
-  elif [ $phase -eq 2 ]; then
-    max_epoch=3
-    warmup=1
-    dynamic_batch_size=2
-    lr=0.002
-  else
-    max_epoch=4
-    warmup=1
-    dynamic_batch_size=2
-    lr=0.003
-  fi
-
-  python3 train_supernet.py run \
+python3 train_supernet.py run \
   --backbone resnet48 \
-  --max_epoch $max_epoch \
+  --max_epoch 70 \
   --batch_size 256 \
-  --lr $lr \
-  --warmup $warmup \
-  --dyna_batch_size $dynamic_batch_size \
+  --lr 0.001 \
+  --warmup 5 \
+  --task expand_ratio \
+  --dyna_batch_size 4 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir $save_dir \
-  --log_freq 10 \
-  --image_dir $image_dir \
-  --task depth \
-  --phase $phase \
-  --resume $resume
-done
-
-
-width_phase_num=6
-for ((phase=1; phase<=width_phase_num; phase++))
-do
-  save_dir=checkpoints/res48_ofa_width_$phase
-
-  if [ $phase -eq 1 ]; then
-    resume=checkpoints/res48_ofa_depth_$depth_phase_num
-  else
-    resume=checkpoints/res48_ofa_width_$(($phase-1))
-  fi
-
-  if [ $phase -eq 1 ]; then
-    max_epoch=5
-    warmup=1
-    dynamic_batch_size=4
-    lr=0.001
-  elif [ $phase -eq 2 ]; then
-    max_epoch=6
-    warmup=1
-    dynamic_batch_size=4
-    lr=0.001
-
-  elif [ $phase -eq 3 ]; then
-    max_epoch=7
-    warmup=1
-    dynamic_batch_size=4
-    lr=0.002
-
-  elif [ $phase -eq 4 ]; then
-    max_epoch=8
-    warmup=1
-    dynamic_batch_size=4
-    lr=0.002
-
-  elif [ $phase -eq 5 ]; then
-    max_epoch=9
-    warmup=1
-    dynamic_batch_size=4
-    lr=0.003
-  else
-    max_epoch=9
-    warmup=1
-    dynamic_batch_size=4
-    lr=0.003
-  fi
-
-
-  python3 train_supernet.py run \
-  --backbone resnet48 \
-  --max_epoch $max_epoch \
-  --batch_size 256 \
-  --lr $lr \
-  --warmup $warmup \
-  --dyna_batch_size $dyna_batch_size \
-  --pretrained checkpoints/resnet48.pdparams \
-  --save_dir $save_dir \
-  --log_freq 10 \
-  --image_dir $image_dir \
-  --task depth \
-  --phase $phase \
-  --resume $resume
-done
+  --save_dir checkpoints/test_del \
+  --log_freq 50 \
+  --image_dir $IMAGEDIR  \
+  --phase 1 
+  # --resume checkpoints/res48-autoslim \
