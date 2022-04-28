@@ -532,7 +532,7 @@ class Trainer(Model):
             batch_size=256,
             log_freq=10,
             verbose=1,
-            num_workers=2,
+            num_workers=4,
             callbacks=None,
             json_path=None):
 
@@ -584,7 +584,10 @@ class Trainer(Model):
             self.network.active_specific_subnet(224, config['arch'])
 
             # bn calibration
-            self.network.bn_calibration(eval_loader)
+            # self.network.bn_calibration(eval_loader)
+
+            # bn calibration with large batch size !! bs should larger than 1024 
+            self.network.model.apply(self.network.large_batch_bn_calibration)
 
             # print(f"after active: {self.network.gen_subnet_code}")
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
@@ -608,7 +611,7 @@ class Trainer(Model):
 
             if ParallelEnv().local_rank == 0:
                 num = json_path.split('_')[-1].split(".")[0]
-                with open(f'checkpoints/results/channel_sample_{num}.txt', 'a') as f:
+                with open(f'checkpoints/results/calibrationbn/channel_sample_{num}.txt', 'a') as f:
                     f.write('{}\n'.format(sample_res))
 
             save_candidate[arch_name]['acc'] = eval_result['acc_top1']

@@ -39,7 +39,7 @@ class EvalCheckpoint(callbacks.Callback):
     def on_eval_begin(self, logs=None):
         if self.model_path is not None and self.eval_flag:
             print('Eval: load checkpoint at {}'.format(self.model_path))
-            self.model.load(self.model_path, reset_optimizer=False)
+            self.model.load(self.model_path, reset_optimizer=True)
             self.eval_flag = False
 
 

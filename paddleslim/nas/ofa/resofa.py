@@ -2,6 +2,7 @@ import random
 import logging
 import numpy as np
 import pdb 
+import gc 
 
 from collections import OrderedDict
 
@@ -246,29 +247,32 @@ class ResOFA(OFA):
         else:
             return stu_out
 
+    def large_batch_bn_calibration(self, m):
+        if isinstance(m, nn.BatchNorm2D):
+            # print(f"large batch bn calibration... training status is: {m.training}")
+            m.training=True 
+            m._use_global_stats=True
+
     def bn_calibration_init(self, m):
-        if isinstance(m, nn.BatchNorm2D) and getattr(m, 'tracking_running_stats', False):
+        if isinstance(m, nn.BatchNorm2D):
+            # print(f"normal batch bn calibration... training status is: {m.training}")
             # reset all values 
-            Constant(0)(m._mean)
-            Constant(1)(m._variance)
-            if m.bias is not None:
-                Constant(0.0)(m.bias)
+            # Constant(0)(m._mean)
+            # Constant(1)(m._variance)
+            # if m.bias is not None:
+            #     Constant(0.0)(m.bias)
 
             # nn.Layer.training flag 
             m.training=True 
             #if cumulative_bn_stats:
             m.momentum = None
     
-    def bn_calibration(self, dataloader, max_iter=10):
+    def bn_calibration(self, dataloader, max_iter=20):
         # init bn
         self.model.apply(self.bn_calibration_init)
-
         # calibrate bn
         for step, data in enumerate(dataloader):
-            print("calibrating bn.................")
             if step > max_iter:
                 break 
-            x = data[0]
-
             # forward for max_iter         
-            self.forward(x)
+            self.forward(data[0])
