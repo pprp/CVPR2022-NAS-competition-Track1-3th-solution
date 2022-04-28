@@ -428,7 +428,7 @@ class Trainer(Model):
                                                           epoch=kwargs.get('epoch', None),
                                                           nBatch=len(data_loader),
                                                           step=step)
-                    if step % 100 == 0:
+                    if step % 100 == 0 and ParallelEnv().local_rank == 0:
                         print("after autoslim the net config: ", self.network.gen_subnet_code)
 
                 else:
