@@ -8,4 +8,4 @@ sbatch eval_supernet.sh checkpoints/jsons/SubTest_8_3.json
 sbatch eval_supernet.sh checkpoints/jsons/SubTest_8_4.json 
 sbatch eval_supernet.sh checkpoints/jsons/SubTest_8_5.json
 sbatch eval_supernet.sh checkpoints/jsons/SubTest_8_6.json 
-# sbatch eval_supernet.sh checkpoints/jsons/SubTest_8_7.json 
+sbatch eval_supernet.sh checkpoints/jsons/SubTest_8_7.json 
