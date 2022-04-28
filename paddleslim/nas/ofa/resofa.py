@@ -57,10 +57,31 @@ class ResOFA(OFA):
         self.current_config = super()._progressive_shrinking(sample_type)
         return self.current_config
 
-    def active_progressive_subnet(self, depth_list, phase=None):
-        # 1. depth in [2,5] 
+    def active_progressive_subnet(self, img_size=None):
+        if img_size is None:
+            self.act_im_size = random.choice(self.cand_cfg['i'])
+        else:
+            self.act_im_size = img_size
+        for k, v in self._ofa_layers.items():
+            if 'expand_ratio' in v:
+                v['expand_ratio'] = sorted(v['expand_ratio'], reverse=True)
+        if self.task == 'depth':
+            self.act_depth_list = []
+            for i, d_cfg, in enumerate(self.cand_cfg['d']):
+                s, e = d_cfg
+                if i == 2:
+                    s = e - 2 * (self.phase or 3)
+                else:
+                    s = e - 1 * (self.phase or 3)
+                self.act_depth_list.append(random.randint(s, e))
+            self.current_config = self._sample_config([self.task], phase=self.phase - 1)
+        elif self.task == 'expand_ratio':
+            self.act_depth_list = [random.randint(s, e) for s, e in self.cand_cfg['d']]
+            self.current_config = self._sample_config([self.task], phase=self.phase - 1)
+        else:
+            pass
 
-        pass 
+        self._broadcast_ss()
 
     def active_autoslim_subnet(self, sample_type="random"): # sample_type -> (random , largest, smallest)
         # image size 

@@ -100,21 +100,28 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             subnet_seed = int('%d%.1d' % (epoch * nBatch + step, i))
             np.random.seed(subnet_seed)
 
-            # sample a subnet for training 
+            # sample a subnet for training
             # self.model.network.active_subnet(MyRandomResizedCrop.current_size)
 
             # once for all
-            current_config = self.model.network._progressive_shrinking("random")
-            self.model.network.set_net_config(current_config)
+            # current_config = self.model.network._progressive_shrinking("random")
+            # self.model.network.set_net_config(current_config)
+            self.model.network.active_progressive_subnet()
 
-            # print(self.model.network.gen_subnet_code)
             if self._nranks > 1:
                 outputs = self.ddp_model.forward(*[to_variable(x) for x in inputs])
             else:
                 outputs = self.model.network.forward(*[to_variable(x) for x in inputs])
 
-            # change this place to process the output of network 
-            losses = self.model._loss(*(to_list(outputs) + labels))
+            if len(outputs) == 2:
+                # training mode
+                losses = self.model._loss(*(to_list(outputs) + labels))
+            else:
+                # eval mode
+                losses = self.model._loss(outputs, tea_input=None, label=labels)
+
+            # change this place to process the output of network
+            # losses = self.model._loss(*(to_list(outputs) + labels))
             losses = to_list(losses)
             final_loss = fluid.layers.sum(losses)
             final_loss.backward()
@@ -145,18 +152,18 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         nBatch = kwargs.get('nBatch', None)
         step = kwargs.get('step', None)
 
-        # set seed 
+        # set seed
         subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
         np.random.seed(subnet_seed)
 
-        # sample largest subnet as teacher net 
+        # sample largest subnet as teacher net
         largest_config = self.model.network.active_autoslim_subnet(sample_type="largest")
         self.model.network.set_net_config(largest_config)
         if self._nranks > 1:
             teacher_output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
         else:
             teacher_output = self.model.network.forward(*[to_variable(x) for x in inputs])
-        ### normal forward with gt 
+        ### normal forward with gt
         loss1 = self.model._loss(input=teacher_output[0], tea_input=None, label=labels)
         loss1.backward()
 
@@ -172,7 +179,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         loss2.backward()
 
         # sample random subnets as student net and perform distill operation
-        for _ in range(self.dyna_bs-2): 
+        for _ in range(self.dyna_bs-2):
             random_config = self.model.network.active_autoslim_subnet(sample_type="random")
             self.model.network.set_net_config(random_config)
             if self._nranks > 1:
@@ -182,7 +189,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             loss3 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
             loss3.backward()
 
-        # change this place to process the output of network 
+        # change this place to process the output of network
         # losses = self.model._loss(*(to_list(outputs) + labels))
         # losses = to_list(loss_list)
         # final_loss = fluid.layers.sum(losses)
@@ -210,7 +217,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         outputs = self.model.network.forward(*[to_variable(x) for x in inputs])
         if self.model._loss:
-            losses = self.model._loss(*(to_list(outputs) + labels))
+            # losses = self.model._loss(*(to_list(outputs) + labels))
+            losses = self.model._loss(outputs, tea_input=None, label=labels[0])
             losses = to_list(losses)
 
         if self._nranks > 1:
@@ -424,8 +432,8 @@ class Trainer(Model):
                     #                                       epoch=kwargs.get('epoch', None),
                     #                                       nBatch=len(data_loader),
                     #                                       step=step)
-                    if step % 100 == 0:
-                        print("after autoslim the net config: ", self.network.gen_subnet_code)
+                    # if step % 100 == 0:
+                    #     print("after autoslim the net config: ", self.network.gen_subnet_code)
 
                 else:
                     outs = getattr(self, mode + '_batch')(data[:len(self._inputs)], data[len(self._inputs):])
@@ -536,7 +544,7 @@ class Trainer(Model):
             callbacks=None,
             json_path=None):
 
-        candidate_path = json_path 
+        candidate_path = json_path
         #"checkpoints/CVPR_2022_NAS_Track1_test.json"
 
         with open(candidate_path, "r") as f:
@@ -545,15 +553,15 @@ class Trainer(Model):
 
         if eval_data is not None and isinstance(eval_data, Dataset):
             # eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
-            eval_sampler = None 
+            eval_sampler = None
             eval_loader = DataLoader(
-                eval_data, 
+                eval_data,
                 batch_sampler=eval_sampler,
                 places=self._place,
-                shuffle=False, 
+                shuffle=False,
                 num_workers=num_workers,
-                batch_size=batch_size, 
-                return_list=True, 
+                batch_size=batch_size,
+                return_list=True,
                 use_shared_memory=True,
                 use_buffer_reader=True)
         else:
@@ -577,7 +585,7 @@ class Trainer(Model):
 
         sample_result = []
         for arch_name, config in candidate_dict.items():
-            s1 = time.time() 
+            s1 = time.time()
             cbks.on_begin('eval', {'steps': eval_steps, 'metrics': self._metrics_name()})
 
             # print(f"before active: {config['arch']}")
@@ -591,7 +599,7 @@ class Trainer(Model):
 
             # print(f"after active: {self.network.gen_subnet_code}")
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
-            
+
             s3 = time.time()
             if ParallelEnv().local_rank == 0 and show_flag:
                 print("forward_one_epoch time: ", s3-s1)

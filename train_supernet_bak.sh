@@ -1,20 +1,15 @@
 #!/bin/bash
 #SBATCH -N 1     # 需要使用的节点数
-#SBATCH -J autoslim      # 作业名字
+#SBATCH -J supnet      # 作业名字
 #SBATCH --gres=gpu:8   # 需要使用的卡数
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
-module load cuda/11.0
-module load anaconda/2020.11 
-module load nccl/2.9.6-1_cuda11.0
-module load cudnn/8.1.1.33_CUDA11.0
+module load anaconda/2020.11 cuda/11.1 cudnn/8.2.1_cuda11.x nccl/2.11.4-1_cuda11.1
 source activate pp
 
-# python -m pip install paddlepaddle-gpu==2.0.2.post110 -f https://paddlepaddle.org.cn/whl/mkl/stable.html
-
 # 将数据加载到内存中
-# mkdir -p /dev/shm/imagenet2012
-# tar -kxf /data/public/imagenet2012/train.tar -C /dev/shm/imagenet2012 & tar -kxf /data/public/imagenet2012/val.tar -C /dev/shm/imagenet2012 
+mkdir -p /dev/shm/imagenet2012
+tar -kxf /data/public/imagenet2012/train.tar -C /dev/shm/imagenet2012 & tar -kxf /data/public/imagenet2012/val.tar -C /dev/shm/imagenet2012 
 
 image_dir=/dev/shm/imagenet2012
 # 此处可填写运行程序的命令
@@ -36,16 +31,15 @@ do
     dynamic_batch_size=2
     lr=0.001
   elif [ $phase -eq 2 ]; then
-    max_epoch=3
+    max_epoch=10
     warmup=1
     dynamic_batch_size=2
-    lr=0.002
+    lr=0.001
   else
-    max_epoch=4
+    max_epoch=26
     warmup=1
     dynamic_batch_size=2
     lr=0.003
-  fi
 
   python3 train_supernet.py run \
   --backbone resnet48 \
@@ -76,39 +70,38 @@ do
   fi
 
   if [ $phase -eq 1 ]; then
-    max_epoch=5
+    max_epoch=28
     warmup=1
     dynamic_batch_size=4
     lr=0.001
   elif [ $phase -eq 2 ]; then
-    max_epoch=6
+    max_epoch=32
     warmup=1
     dynamic_batch_size=4
     lr=0.001
 
   elif [ $phase -eq 3 ]; then
-    max_epoch=7
+    max_epoch=36
     warmup=1
     dynamic_batch_size=4
-    lr=0.002
+    lr=0.001
 
   elif [ $phase -eq 4 ]; then
-    max_epoch=8
+    max_epoch=44
     warmup=1
     dynamic_batch_size=4
-    lr=0.002
+    lr=0.001
 
   elif [ $phase -eq 5 ]; then
-    max_epoch=9
+    max_epoch=52
     warmup=1
     dynamic_batch_size=4
-    lr=0.003
+    lr=0.001
   else
-    max_epoch=9
+    max_epoch=60
     warmup=1
     dynamic_batch_size=4
-    lr=0.003
-  fi
+    lr=0.001
 
 
   python3 train_supernet.py run \
