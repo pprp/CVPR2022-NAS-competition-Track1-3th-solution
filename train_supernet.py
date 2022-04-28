@@ -102,7 +102,7 @@ def run(
     image_size='224',
     max_epoch=120,
     lr=0.0025,
-    weight_decay=0,
+    weight_decay=0.,
     momentum=0.9,
     batch_size=80,
     dyna_batch_size=4,
@@ -229,7 +229,7 @@ def main(cfg):
         callbacks=callbacks,
     )
 
-    model.evaluate(val_set, batch_size=cfg.batch_size, num_workers=1, eval_sample_num=10)
+    model.evaluate(val_set, batch_size=cfg.batch_size, num_workers=1, eval_sample_num=3)
 
 
 if __name__ == '__main__':

@@ -20,7 +20,7 @@ source activate pp
 
 # ignore warning 
 python3 train_supernet.py run \
-  --backbone resnet48_prelu \
+  --backbone resnet48 \
   --max_epoch 70 \
   --batch_size 256 \
   --lr 0.001 \
