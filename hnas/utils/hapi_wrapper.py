@@ -168,7 +168,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
         else:
             output = self.model.network.forward(*[to_variable(x) for x in inputs])
-        loss2 = self.model._loss(input=output[0],tea_input=teacher_output, label=None)
+        loss2 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
         loss2.backward()
 
         # sample random subnets as student net and perform distill operation
@@ -179,7 +179,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
                 output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
             else:
                 output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            loss3 = self.model._loss(input=output[0],tea_input=teacher_output, label=None)
+            loss3 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
             loss3.backward()
 
         # change this place to process the output of network 
@@ -193,7 +193,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         metrics = []
         for metric in self.model._metrics:
-            metric_outs = metric.compute(output, labels)
+            metric_outs = metric.compute(output[0], labels)
             m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
             metrics.append(m)
 

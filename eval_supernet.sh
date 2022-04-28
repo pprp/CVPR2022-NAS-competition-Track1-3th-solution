@@ -24,8 +24,8 @@ python3 eval_supernet.py run \
   --warmup 5 \
   --dyna_batch_size 2 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-prelu \
+  --save_dir checkpoints/res48-autoslim \
   --log_freq 1 \
-  --resume checkpoints/res48-prelu \
+  --resume checkpoints/res48-autoslim \
   --json_path  $JSON_PATH1 \
   --image_dir /data/public/imagenet-mini 
