@@ -57,10 +57,10 @@ def init_workers(self):
 
 dli._DataLoaderIterMultiProcess._init_workers = init_workers
 
-def iter(self):
-    if self.num_workers == 0:
-        raise NotImplementedError
-    else:
-        return dli._DataLoaderIterMultiProcess(self)
+# def iter(self):
+#     if self.num_workers == 0:
+#         raise NotImplementedError
+#     else:
+#         return dli._DataLoaderIterMultiProcess(self)
 
-DataLoader.__iter__ = iter
+# DataLoader.__iter__ = iter

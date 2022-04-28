@@ -223,7 +223,7 @@ def main(cfg):
         save_freq=cfg.save_freq,
         log_freq=cfg.log_freq,
         shuffle=True,
-        num_workers=2,
+        num_workers=1,
         verbose=2, 
         drop_last=True,
         callbacks=callbacks,

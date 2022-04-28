@@ -259,6 +259,7 @@ class ResOFA(OFA):
         self.model.apply(self.bn_calibration_init)
 
         # calibrate bn
+        # TODO: 大batch， 新建dataloader
         for step, data in enumerate(dataloader):
             print("calibrating bn.................")
             if step > max_iter:
