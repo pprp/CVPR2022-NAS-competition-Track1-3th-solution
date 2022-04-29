@@ -13,19 +13,19 @@ source activate pp
 JSON_PATH1=$1
 
 # 为了优化速度问题，将数据集加载到内存中。
-# mkdir -p /dev/shm/imagenet-mini/val 
-# unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
+mkdir -p /dev/shm/imagenet-mini/val 
+unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
 
 # 此处可填写运行程序的命令
 python3 eval_supernet.py run \
   --backbone resnet48 \
-  --batch_size 1024 \
+  --batch_size 256 \
   --lr 0.001 \
   --warmup 5 \
   --dyna_batch_size 2 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-autoslim \
+  --save_dir checkpoints/res48-autoslim2 \
   --log_freq 1 \
-  --resume checkpoints/res48-autoslim \
+  --resume checkpoints/res48-autoslim2 \
   --json_path  $JSON_PATH1 \
-  --image_dir /data/public/imagenet-mini 
+  --image_dir /dev/shm/imagenet-mini 

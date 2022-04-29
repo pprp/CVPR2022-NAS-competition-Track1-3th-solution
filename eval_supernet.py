@@ -25,9 +25,45 @@ from hnas.utils.yacs import CfgNode
 from hnas.models.builder import build_classifier
 
 
-def _loss_forward(self, input, tea_input, label=None):
-    if label is not None:
-        ret = paddle.nn.functional.cross_entropy(
+
+# def _loss_forward(self, input, tea_input, label=None):
+#     if label is not None:
+#         ret = paddle.nn.functional.cross_entropy(
+#             input,
+#             label,
+#             weight=self.weight,
+#             ignore_index=self.ignore_index,
+#             reduction=self.reduction,
+#             soft_label=self.soft_label,
+#             axis=self.axis,
+#             name=self.name)
+
+#         mse = paddle.nn.functional.cross_entropy(
+#             input,
+#             paddle.nn.functional.softmax(tea_input),
+#             weight=self.weight,
+#             ignore_index=self.ignore_index,
+#             reduction=self.reduction,
+#             soft_label=True,
+#             axis=self.axis)
+#         # mse = paddle.nn.functional.mse_loss(input, tea_input)
+#         return ret, mse
+#     else:
+#         ret = paddle.nn.functional.cross_entropy(
+#             input,
+#             tea_input,
+#             weight=self.weight,
+#             ignore_index=self.ignore_index,
+#             reduction=self.reduction,
+#             soft_label=self.soft_label,
+#             axis=self.axis,
+#             name=self.name)
+#         return ret
+
+def _loss_forward(self, input, tea_input=None, label=None):
+    if tea_input is not None and label is not None:
+        # cross entropy + knowledge distillation
+        ce = paddle.nn.functional.cross_entropy(
             input,
             label,
             weight=self.weight,
@@ -37,7 +73,7 @@ def _loss_forward(self, input, tea_input, label=None):
             axis=self.axis,
             name=self.name)
 
-        mse = paddle.nn.functional.cross_entropy(
+        kd = paddle.nn.functional.cross_entropy(
             input,
             paddle.nn.functional.softmax(tea_input),
             weight=self.weight,
@@ -45,19 +81,34 @@ def _loss_forward(self, input, tea_input, label=None):
             reduction=self.reduction,
             soft_label=True,
             axis=self.axis)
-        # mse = paddle.nn.functional.mse_loss(input, tea_input)
-        return ret, mse
-    else:
-        ret = paddle.nn.functional.cross_entropy(
+        return ce, kd
+    elif tea_input is not None and label is None:
+        # inplace distillation
+        kd = paddle.nn.functional.cross_entropy(
             input,
-            tea_input,
+            paddle.nn.functional.softmax(tea_input),
             weight=self.weight,
             ignore_index=self.ignore_index,
             reduction=self.reduction,
-            soft_label=self.soft_label,
+            soft_label=True,
+            axis=self.axis)
+        return kd
+    elif label is not None:
+        # normal cross entropy
+        # print("line 62: ", input.shape, label.shape)
+        ce = paddle.nn.functional.cross_entropy(
+            input,
+            label,
+            weight=self.weight,
+            ignore_index=self.ignore_index,
+            reduction=self.reduction,
+            soft_label=False,
             axis=self.axis,
             name=self.name)
-        return ret
+        return ce
+    else:
+        raise "Not Implemented Loss."
+
 CrossEntropyLoss.forward = _loss_forward
 
 def _compute(self, pred, tea_pred, label=None, *args):
