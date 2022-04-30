@@ -153,7 +153,7 @@ def main(cfg):
     val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
     callbacks = [LRSchedulerM(),
                  MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase),
-                 paddle.callbacks.VisualDL(log_dir='./visualdl_log/ofa_run6'),]
+                 paddle.callbacks.VisualDL(log_dir='./visualdl_log/flops_sandwich'),]
 
     # build resnet48 and teacher net
     net = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=True)

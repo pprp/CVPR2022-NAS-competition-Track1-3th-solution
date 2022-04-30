@@ -34,7 +34,7 @@ class ResOFA(OFA):
                  ):
         super().__init__(model, run_config, distill_config, elastic_order, train_full)
         self.model.eval()
-        self._clear_search_space() # delete clear search space 
+        self._clear_search_space() # delete clear search space
         self.cand_cfg = candidate_config
         # self.cand_cfg = {
         #     'i': [224],  # image size
@@ -154,7 +154,8 @@ class ResOFA(OFA):
             else:
                 self.current_config[key] = v
 
-        # self._broadcast_ss()
+        self._broadcast_ss()
+        return self.current_config
 
     @property
     def gen_subnet_code(self):
@@ -239,16 +240,16 @@ class ResOFA(OFA):
                 tmp_same_ss.append(per_ss)
         self._same_ss = tmp_same_ss
 
-        for per_ss in self._same_ss:
-            for ss in per_ss[1:]:
-                # if 'expand_ratio' in self._ofa_layers[self._param2key[ss]]:
-                #     self._ofa_layers[self._param2key[ss]].pop('expand_ratio')
-
-                if 'channel' in self._ofa_layers[self._param2key[ss]]:
-                    self._ofa_layers[self._param2key[ss]].pop('channel')
-
-                if len(self._ofa_layers[self._param2key[ss]]) == 0:
-                    self._ofa_layers.pop(self._param2key[ss])
+        # for per_ss in self._same_ss:
+        #     for ss in per_ss[1:]:
+        #         # if 'expand_ratio' in self._ofa_layers[self._param2key[ss]]:
+        #         #     self._ofa_layers[self._param2key[ss]].pop('expand_ratio')
+        #
+        #         if 'channel' in self._ofa_layers[self._param2key[ss]]:
+        #             self._ofa_layers[self._param2key[ss]].pop('channel')
+        #
+        #         if len(self._ofa_layers[self._param2key[ss]]) == 0:
+        #             self._ofa_layers.pop(self._param2key[ss])
 
     def forward(self, x):
         teacher_output = None

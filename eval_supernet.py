@@ -25,41 +25,6 @@ from hnas.utils.yacs import CfgNode
 from hnas.models.builder import build_classifier
 
 
-
-# def _loss_forward(self, input, tea_input, label=None):
-#     if label is not None:
-#         ret = paddle.nn.functional.cross_entropy(
-#             input,
-#             label,
-#             weight=self.weight,
-#             ignore_index=self.ignore_index,
-#             reduction=self.reduction,
-#             soft_label=self.soft_label,
-#             axis=self.axis,
-#             name=self.name)
-
-#         mse = paddle.nn.functional.cross_entropy(
-#             input,
-#             paddle.nn.functional.softmax(tea_input),
-#             weight=self.weight,
-#             ignore_index=self.ignore_index,
-#             reduction=self.reduction,
-#             soft_label=True,
-#             axis=self.axis)
-#         # mse = paddle.nn.functional.mse_loss(input, tea_input)
-#         return ret, mse
-#     else:
-#         ret = paddle.nn.functional.cross_entropy(
-#             input,
-#             tea_input,
-#             weight=self.weight,
-#             ignore_index=self.ignore_index,
-#             reduction=self.reduction,
-#             soft_label=self.soft_label,
-#             axis=self.axis,
-#             name=self.name)
-#         return ret
-
 def _loss_forward(self, input, tea_input=None, label=None):
     if tea_input is not None and label is not None:
         # cross entropy + knowledge distillation
