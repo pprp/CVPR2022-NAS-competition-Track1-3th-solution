@@ -389,7 +389,6 @@ class OFA(OFABase):
         # pdb.set_trace()
         epoch = self._compute_epochs()
         phase_idx = None
-        print("##_## : ofa.py line 393:", self.elastic_order)
         if len(self.elastic_order) != 1:
             assert self.run_config.n_epochs is not None, \
                 "if not use set_task() to set current task, please set n_epochs in run_config " \

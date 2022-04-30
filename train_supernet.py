@@ -102,7 +102,7 @@ def run(
     image_size='224',
     max_epoch=120,
     lr=0.0025,
-    weight_decay=0,
+    weight_decay=0.,
     momentum=0.9,
     batch_size=80,
     dyna_batch_size=4,
@@ -152,7 +152,8 @@ def main(cfg):
     train_set = DatasetFolder(os.path.join(cfg.image_dir, 'train'), transform=transforms)
     val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
     callbacks = [LRSchedulerM(), 
-                 MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase)]
+                 MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase),
+                 paddle.callbacks.VisualDL(log_dir='./visualdl_log/flops_sand_run2')]
 
     # build resnet48 and teacher net
     net = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=True)
