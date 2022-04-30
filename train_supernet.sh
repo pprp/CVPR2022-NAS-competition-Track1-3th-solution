@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH -N 1     # 需要使用的节点数
-#SBATCH -J autoslim      # 作业名字
-#SBATCH --gres=gpu:8   # 需要使用的卡数
+#SBATCH -J flpsd      # 作业名字
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
 module load cuda/11.0
@@ -17,19 +16,22 @@ source activate pp
 # tar -kxf /data/public/imagenet2012/train.tar -C /dev/shm/imagenet2012 & tar -kxf /data/public/imagenet2012/val.tar -C /dev/shm/imagenet2012 
 
 # 此处可填写运行程序的命令
+# 测试flops sandwich 
 
 # ignore warning 
 python3 train_supernet.py run \
-  --backbone resnet48_prelu \
+  --backbone resnet48 \
   --max_epoch 70 \
   --batch_size 256 \
   --lr 0.001 \
   --warmup 5 \
   --dyna_batch_size 4 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-autoslim2 \
+  --save_dir checkpoints/res48-flops-sandwich \
   --log_freq 50 \
-  --image_dir /data/public/imagenet2012 \
+  --image_dir /data/public/imagenet-mini \
   # --resume checkpoints/res48-autoslim \
 
 
+# run1 搞错了，是普通的调用ofa的接口，写的有问题。
+# run2 真正的baseline, flops sandwich 
