@@ -2,6 +2,7 @@ import warnings
 import random
 import numpy as np
 import json
+import gc
 
 import paddle
 import paddle.distributed as dist
@@ -12,7 +13,7 @@ from paddle.hapi.model import DynamicGraphAdapter
 from paddle.fluid.dygraph.parallel import ParallelEnv
 from paddle.fluid.dygraph.base import to_variable
 from paddle.fluid.executor import global_scope
-from paddle.fluid.framework import in_dygraph_mode, Variable
+from paddle.fluid.framework import Variable
 from paddle.fluid.layers import collective
 
 from paddleslim.nas.ofa import OFA
@@ -20,6 +21,7 @@ from paddle.fluid.layers.utils import flatten
 from paddle.hapi.callbacks import config_callbacks, EarlyStopping
 from paddle.io import Dataset, DistributedBatchSampler, DataLoader
 
+from hnas.utils.flops_partition import FlopsPartition
 from ..dataset.dataiter import DataLoader as TrainDataLoader
 from ..dataset.random_size_crop import MyRandomResizedCrop
 
@@ -83,9 +85,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         self.dyna_bs = cfg.get('dynamic_batch_size', 1)
 
     # TODO multi device in dygraph mode not implemented at present time
-    def train_batch(self, inputs, labels=None, **kwargs):
+    def train_batch_ofa(self, inputs, labels=None, **kwargs):
         assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
-        # self.model.network.train()
         self.model.network.model.train()
         self.mode = 'train'
         inputs = to_list(inputs)
@@ -100,21 +101,23 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             subnet_seed = int('%d%.1d' % (epoch * nBatch + step, i))
             np.random.seed(subnet_seed)
 
-            # sample a subnet for training 
-            # self.model.network.active_subnet(MyRandomResizedCrop.current_size)
-
             # once for all
-            current_config = self.model.network._progressive_shrinking("random")
-            self.model.network.set_net_config(current_config)
+            self.model.network.active_progressive_subnet()
 
-            # print(self.model.network.gen_subnet_code)
             if self._nranks > 1:
                 outputs = self.ddp_model.forward(*[to_variable(x) for x in inputs])
             else:
                 outputs = self.model.network.forward(*[to_variable(x) for x in inputs])
 
-            # change this place to process the output of network 
-            losses = self.model._loss(*(to_list(outputs) + labels))
+            if len(outputs) == 2:
+                # training mode
+                losses = self.model._loss(input=outputs[0], tea_input=outputs[1], label=labels[0])
+            else:
+                # eval mode
+                losses = self.model._loss(outputs, tea_input=None, label=labels)
+
+            # change this place to process the output of network
+            # losses = self.model._loss(*(to_list(outputs) + labels))
             losses = to_list(losses)
             final_loss = fluid.layers.sum(losses)
             final_loss.backward()
@@ -134,7 +137,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
     def train_batch_sandwich(self, inputs, labels=None, **kwargs):
         # follow sandwich rule in autoslim
         assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
-        # self.model.network.train()
+        # self.model.network.train() 
         self.model.network.model.train()
         self.mode = 'train'
         inputs = to_list(inputs)
@@ -168,18 +171,18 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
         else:
             output = self.model.network.forward(*[to_variable(x) for x in inputs])
-        loss2 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+        loss2 = self.model._loss(input=output[0], tea_input=teacher_output[0], label=None)
         loss2.backward()
 
         # sample random subnets as student net and perform distill operation
-        for _ in range(self.dyna_bs-2): 
+        for _ in range(self.dyna_bs - 2):
             random_config = self.model.network.active_autoslim_subnet(sample_type="random")
             self.model.network.set_net_config(random_config)
             if self._nranks > 1:
                 output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
             else:
                 output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            loss3 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+            loss3 = self.model._loss(input=output[0], tea_input=teacher_output[0], label=None)
             loss3.backward()
 
         # change this place to process the output of network 
@@ -199,6 +202,121 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         return ([to_numpy(l) for l in [loss1]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss1]]
 
+    def one_forward(self, inputs):
+        if self._nranks > 1:
+            output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+        else:
+            output = self.model.network.forward(*[to_variable(x) for x in inputs])
+
+        return output
+
+    def get_acc(self, output, labels):
+        metrics = []
+        for metric in self.model._metrics:
+            metric_outs = metric.compute(output[0], labels)
+            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
+            metrics.append(m)
+
+        # metrics [[0.671875, 0.87109375]]
+        acc = metrics[0][0]
+
+        return acc
+
+    def train_batch_partition_sandwich(self, inputs, labels=None, partition_obj=None, **kwargs):
+        assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
+        self.model.network.model.train()
+        self.mode = 'train'
+        inputs = to_list(inputs)
+        self._input_info = _update_input_info(inputs)
+        labels = to_variable(labels).squeeze(0)
+        epoch = kwargs.get('epoch', None)
+        self.epoch = epoch
+        nBatch = kwargs.get('nBatch', None)
+        step = kwargs.get('step', None)
+
+        # set seed
+        subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
+        np.random.seed(subnet_seed)
+
+        # at first epoch train the teacher arch of each partition
+        if partition_obj.FIRST_EPOCH:
+            for p_num, p_info in partition_obj.partition_info.items():
+                arch_config = p_info['teacher_arch']
+                current_config = self.model.network.active_specific_subnet(arch_config=arch_config)
+                self.model.network.set_net_config(current_config)
+
+                output = self.one_forward(inputs)
+                ### normal forward with gt
+                loss = self.model._loss(input=output[0], tea_input=None, label=labels)
+                loss.backward()
+
+            partition_obj.FIRST_EPOCH = False
+
+        # sample random subnets as student net and perform distill operation
+        for _ in range(self.dyna_bs):
+            # 1.前向获取当前子网的acc
+            self.model.network.active_subnet()
+            self.model.network.set_net_config(self.model.network.current_config)
+            stu_output = self.one_forward(inputs)
+            stu_acc = self.get_acc(stu_output, labels)
+            del stu_output
+
+            # 2.获取当前子网所在计算量分区
+            stu_arch = self.model.network.gen_subnet_code
+            partition_num = partition_obj.get_arch_partition_num(stu_arch)
+
+            # 3.获取当前分区teacher子网的acc
+            p_info = partition_obj.partition_info[partition_num]
+            teacher_arch = p_info['teacher_arch']
+
+            current_config = self.model.network.active_specific_subnet(arch_config=teacher_arch)
+            self.model.network.set_net_config(current_config)
+            tea_output = self.one_forward(inputs)
+            tea_acc = self.get_acc(tea_output, labels)
+
+            # 4.比较当前子网和teacher子网的acc,谁大,谁为teacher,谁小谁为student
+            if tea_acc < stu_acc and partition_num != 4:
+                teacher_arch, stu_arch = stu_arch, teacher_arch
+                p_info['teacher_arch'] = teacher_arch
+
+                del tea_output
+                current_config = self.model.network.active_specific_subnet(arch_config=teacher_arch)
+                self.model.network.set_net_config(current_config)
+                tea_output = self.one_forward(inputs)
+
+            # 5.训练teacher
+            # normal forward with gt
+            loss1 = self.model._loss(input=tea_output[0], tea_input=None, label=labels)
+            loss1.backward()
+
+            # 6.teacher指导student训练
+            current_config = self.model.network.active_specific_subnet(arch_config=stu_arch)
+            self.model.network.set_net_config(current_config)
+            output = self.one_forward(inputs)
+            loss2 = self.model._loss(input=output[0], tea_input=tea_output[0], label=None)
+            loss2.backward()
+            del tea_output
+            gc.collect()
+
+        # change this place to process the output of network
+        # losses = self.model._loss(*(to_list(outputs) + labels))
+        # losses = to_list(loss_list)
+        # final_loss = fluid.layers.sum(losses)
+        # final_loss.backward()
+
+        self.model._optimizer.step()
+        self.model._optimizer.clear_grad()
+
+        metrics = []
+        for metric in self.model._metrics:
+            metric_outs = metric.compute(output[0], labels)
+            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
+            metrics.append(m)
+
+        del output
+
+        return ([to_numpy(l) for l in [loss2]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss2]]
+
     def eval_batch(self, inputs, labels=None):
         self.model.network.eval()
         self.model.network.model.eval()
@@ -210,7 +328,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         outputs = self.model.network.forward(*[to_variable(x) for x in inputs])
         if self.model._loss:
-            losses = self.model._loss(*(to_list(outputs) + labels))
+            # losses = self.model._loss(*(to_list(outputs) + labels))
+            losses = self.model._loss(outputs, tea_input=None, label=labels[0])
             losses = to_list(losses)
 
         if self._nranks > 1:
@@ -295,7 +414,7 @@ class Trainer(Model):
             verbose=2,
             drop_last=False,
             shuffle=True,
-            num_workers=0,
+            num_workers=1,
             callbacks=None, ):
         assert train_data is not None, "train_data must be given!"
 
@@ -347,10 +466,11 @@ class Trainer(Model):
             warnings.warn("EarlyStopping needs validation data.")
 
         cbks.on_begin('train')
+        partition_obj = FlopsPartition()
         for epoch in range(self.start_epoch, epochs):
             cbks.on_epoch_begin(epoch)
             self.network.set_epoch(epoch)
-            logs = self._run_one_epoch(train_loader, cbks, 'train', epoch=epoch)
+            logs = self._run_one_epoch(train_loader, cbks, 'train', epoch=epoch, partition_obj=partition_obj)
             cbks.on_epoch_end(epoch, logs)
 
             if do_eval and epoch % eval_freq == 0:
@@ -384,7 +504,14 @@ class Trainer(Model):
             self._update_inputs()
         return loss
 
-    def _run_one_epoch(self, data_loader, callbacks, mode, logs={}, **kwargs):
+    def train_batch_partition_sandwich(self, inputs, labels=None, partition_obj=None, **kwargs):
+        # call the function train_batch of adapter
+        loss = self._adapter.train_batch_partition_sandwich(inputs, labels, partition_obj=partition_obj, **kwargs)
+        if fluid.in_dygraph_mode() and self._input_info is None:
+            self._update_inputs()
+        return loss
+
+    def _run_one_epoch(self, data_loader, callbacks, mode, logs={}, partition_obj=None, **kwargs):
         outputs = []
         if mode == 'train':
             MyRandomResizedCrop.epoch = kwargs.get('epoch', None)
@@ -536,7 +663,7 @@ class Trainer(Model):
             callbacks=None,
             json_path=None):
 
-        candidate_path = json_path 
+        candidate_path = json_path
         #"checkpoints/CVPR_2022_NAS_Track1_test.json"
 
         with open(candidate_path, "r") as f:
@@ -545,15 +672,15 @@ class Trainer(Model):
 
         if eval_data is not None and isinstance(eval_data, Dataset):
             # eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
-            eval_sampler = None 
+            eval_sampler = None
             eval_loader = DataLoader(
-                eval_data, 
+                eval_data,
                 batch_sampler=eval_sampler,
                 places=self._place,
-                shuffle=False, 
+                shuffle=False,
                 num_workers=num_workers,
-                batch_size=batch_size, 
-                return_list=True, 
+                batch_size=batch_size,
+                return_list=True,
                 use_shared_memory=True,
                 use_buffer_reader=True)
         else:
@@ -577,7 +704,7 @@ class Trainer(Model):
 
         sample_result = []
         for arch_name, config in candidate_dict.items():
-            s1 = time.time() 
+            s1 = time.time()
             cbks.on_begin('eval', {'steps': eval_steps, 'metrics': self._metrics_name()})
 
             # print(f"before active: {config['arch']}")
@@ -591,10 +718,10 @@ class Trainer(Model):
 
             # print(f"after active: {self.network.gen_subnet_code}")
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
-            
+
             s3 = time.time()
             if ParallelEnv().local_rank == 0 and show_flag:
-                print("forward_one_epoch time: ", s3-s1)
+                print("forward_one_epoch time: ", s3 - s1)
 
             cbks.on_end('eval', logs)
 
@@ -603,7 +730,8 @@ class Trainer(Model):
             eval_result = {}
             for k in self._metrics_name():
                 eval_result[k] = logs[k]
-            sample_res = '{} {} {} {}'.format(arch_name, config['arch'], eval_result['acc_top1'], eval_result['acc_top5'])
+            sample_res = '{} {} {} {}'.format(arch_name, config['arch'], eval_result['acc_top1'],
+                                              eval_result['acc_top5'])
             if ParallelEnv().local_rank == 0:
                 print(sample_res)
 
@@ -617,7 +745,8 @@ class Trainer(Model):
             save_candidate[arch_name]['acc'] = eval_result['acc_top1']
 
         if ParallelEnv().local_rank == 0:
-            save_path = candidate_path.replace('CVPR_2022_NAS_Track1_test', 'CVPR_2022_NAS_Track1_test_{}'.format(time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())))
+            save_path = candidate_path.replace('CVPR_2022_NAS_Track1_test', 'CVPR_2022_NAS_Track1_test_{}'.format(
+                time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())))
             with open(save_path, 'w') as f:
                 json.dump(save_candidate, f)
 

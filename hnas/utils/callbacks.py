@@ -56,18 +56,22 @@ class MyModelCheckpoint(callbacks.ModelCheckpoint):
             return pickle.load(f) if six.PY2 else pickle.load(f, encoding='latin1')
         
     def on_train_begin(self, logs=None):
-        if self.phase is not None:
-            path = '{}/final'.format(self.phase)
-            print('Phase: load checkpoint at {}'.format(os.path.abspath(path)))
-            self.model.load(path, reset_optimizer=True)
+        # if self.phase is not None:
+        #     path = '{}/final'.format(self.phase)
+        #     print('Phase: load checkpoint at {}'.format(os.path.abspath(path)))
+        #     self.model.load(path, reset_optimizer=True)
 
         if self.resume is not None:
             path = '{}/final'.format(self.resume)
             print('Resume: load checkpoint at {}'.format(os.path.abspath(path)))
             opt_path = path + ".pdopt"
             optim_state = self.load_state_from_path(opt_path)
-            self.model.start_epoch = optim_state['epoch'] + 1
-            print('start epoch: ', self.model.start_epoch)
+            if optim_state is not None:
+                # first resume is None
+                self.model.start_epoch = optim_state['epoch']
+                print('start epoch: ', self.model.start_epoch)
+            else:
+                print("first run and no optimizer state dict")
             self.model.load(path)
 
     def on_epoch_end(self, epoch, logs=None):
@@ -75,9 +79,10 @@ class MyModelCheckpoint(callbacks.ModelCheckpoint):
             path = '{}/{}'.format(self.save_dir, epoch)
             print('MY: save checkpoint at {}'.format(os.path.abspath(path)))
             self.model.save(path)
-        path = '{}/final'.format(self.save_dir)
-        print('MY: save checkpoint at {}'.format(os.path.abspath(path)))
-        self.model.save(path, training=True)
+        if self._is_save():
+            path = '{}/final'.format(self.save_dir)
+            print('MY: save checkpoint at {}'.format(os.path.abspath(path)))
+            self.model.save(path, training=True)
 
 
 class MyModelCheckpoint2(callbacks.ModelCheckpoint):

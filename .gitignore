@@ -11,3 +11,4 @@ channel_sample_whole_dataset.txt
 slurm*
 tmp.txt
 visualdl_log/*
+test*

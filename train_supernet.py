@@ -4,8 +4,8 @@ import paddle
 import paddle.nn as nn
 from paddle.nn import CrossEntropyLoss
 from paddle.vision.transforms import (
-    RandomHorizontalFlip, RandomResizedCrop, SaturationTransform, 
-    Compose, Resize, HueTransform, BrightnessTransform, ContrastTransform, 
+    RandomHorizontalFlip, RandomResizedCrop, SaturationTransform,
+    Compose, Resize, HueTransform, BrightnessTransform, ContrastTransform,
     RandomCrop, Normalize, RandomRotation, CenterCrop)
 from paddle.io import DataLoader
 from paddle.optimizer.lr import CosineAnnealingDecay, MultiStepDecay, LinearWarmup
@@ -22,7 +22,6 @@ from paddleslim.nas.ofa.utils import utils
 import paddle.distributed as dist
 from hnas.utils.yacs import CfgNode
 from hnas.models.builder import build_classifier
-
 
 def _loss_forward(self, input, tea_input=None, label=None):
     if tea_input is not None and label is not None:
@@ -56,9 +55,9 @@ def _loss_forward(self, input, tea_input=None, label=None):
             reduction=self.reduction,
             soft_label=True,
             axis=self.axis)
-        return kd 
+        return kd
     elif label is not None:
-        # normal cross entropy 
+        # normal cross entropy
         # print("line 62: ", input.shape, label.shape)
         ce = paddle.nn.functional.cross_entropy(
             input,
@@ -108,6 +107,7 @@ def run(
     dyna_batch_size=4,
     warmup=2,
     phase=None,
+    task='expand_ratio',
     resume=None,
     pretrained='checkpoints/resnet48.pdparams',
     image_dir='/root/paddlejob/workspace/env_run/data/ILSVRC2012/',
@@ -141,7 +141,7 @@ def main(cfg):
     cfg.lr = cfg.lr * cfg.batch_size * dist.get_world_size() / 256
     warmup_step = int(1281024 / (cfg.batch_size * dist.get_world_size())) * cfg.warmup
 
-    # data augmentation 
+    # data augmentation
     transforms = Compose([
         MyRandomResizedCrop(cfg.image_size_list),
         RandomHorizontalFlip(),
@@ -161,13 +161,13 @@ def main(cfg):
     origin_weights = {}
     for name, param in net.named_parameters():
         origin_weights[name] = param
-    
-    # convert resnet48 to supernet 
-    sp_model = Convert(supernet(expand_ratio=[1.0])).convert(net)  # net转换成supernet
+
+    # convert resnet48 to supernet
+    sp_model = Convert(supernet(expand_ratio=[1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7])).convert(net)  # net转换成supernet
     utils.set_state_dict(sp_model, origin_weights)  # 重新对supernet加载数据
     del origin_weights
 
-    # set candidate config 
+    # set candidate config
     cand_cfg = {
             'i': [224],  # image size
             'd': [(2, 5), (2, 5), (2, 8), (2, 5)],  # depth
@@ -194,17 +194,16 @@ def main(cfg):
 
     ofa_net = ResOFA(sp_model,
                     #  run_config=RunConfig(**default_run_config),
-                     distill_config=DistillConfig(**default_distill_config),  # lambda_distill=1.0
+                     distill_config=DistillConfig(**default_distill_config), # lambda_distill=1.0
                      candidate_config=cand_cfg,
                      block_conv_num=2)
 
-    # ofa_net.set_task(['depth', 'expand_ratio'])
-    ofa_net.set_task('expand_ratio')
+    ofa_net.set_task(cfg.task, cfg.phase)
 
     run_config = {'dynamic_batch_size': cfg.dyna_batch_size}
     model = Trainer(ofa_net, cfg=run_config)
 
-    # calculate loss by ce 
+    # calculate loss by ce
     model.prepare(
         paddle.optimizer.Momentum(
             learning_rate=LinearWarmup(
@@ -214,7 +213,7 @@ def main(cfg):
             weight_decay=cfg.weight_decay),
         CrossEntropyLoss(),
         paddle.metric.Accuracy(topk=(1,5)))
-        
+
     model.fit(
         train_set,
         None,
@@ -230,7 +229,7 @@ def main(cfg):
         callbacks=callbacks,
     )
 
-    model.evaluate(val_set, batch_size=cfg.batch_size, num_workers=1, eval_sample_num=10)
+    model.evaluate(val_set, batch_size=cfg.batch_size, num_workers=1, eval_sample_num=3)
 
 
 if __name__ == '__main__':
