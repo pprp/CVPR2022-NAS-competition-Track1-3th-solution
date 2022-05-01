@@ -34,7 +34,8 @@ image_dir=/dev/shm/imagenet2012
 # warmup 在第一个phase设置为0
 # expand ratio在
 
-# 完整训练log: 131750
+# 训练1 log: 131750
+# 训练2 log:
 
 depth_phase_num=3
 for ((phase=1; phase<=$depth_phase_num; phase++))

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -N 1     # 需要使用的节点数
-#SBATCH -J ppenv      # 作业名字
+#SBATCH -J ofaev      # 作业名字
 #SBATCH --gres=gpu:1   # 需要使用的卡数
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
@@ -19,13 +19,15 @@ unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-
 # 此处可填写运行程序的命令
 python3 eval_supernet.py run \
   --backbone resnet48 \
-  --batch_size 256 \
+  --batch_size 128 \
   --lr 0.001 \
   --warmup 5 \
   --dyna_batch_size 2 \
-  --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-autoslim2 \
+  --pretrained None \
+  --save_dir checkpoints/res48_ofa/res48_ofa_width_6 \
   --log_freq 1 \
-  --resume checkpoints/res48-autoslim2 \
+  --resume checkpoints/res48_ofa/res48_ofa_width_6 \
   --json_path  $JSON_PATH1 \
   --image_dir /dev/shm/imagenet-mini 
+
+ #checkpoints/resnet48.pdparams \

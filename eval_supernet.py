@@ -138,7 +138,7 @@ def run(
     image_size='224',
     max_epoch=120,
     lr=0.0025,
-    weight_decay=3e-5,
+    weight_decay=0.,
     momentum=0.9,
     batch_size=80,
     dyna_batch_size=4,
@@ -218,7 +218,7 @@ def main(cfg):
         CrossEntropyLoss(),
         paddle.metric.Accuracy(topk=(1,5)))
 
-    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=1, callbacks=eval_callbacks, json_path=cfg.json_path)
+    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=8, callbacks=eval_callbacks, json_path=cfg.json_path)
 
 
 if __name__ == '__main__':
