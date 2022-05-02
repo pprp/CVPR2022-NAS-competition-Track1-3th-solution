@@ -23,6 +23,7 @@ from paddle.io import Dataset, DistributedBatchSampler, DataLoader
 from ..dataset.dataiter import DataLoader as TrainDataLoader
 from ..dataset.random_size_crop import MyRandomResizedCrop
 
+from hnas.utils.alphanet_loss import AdaptiveLossSoft
 
 def _all_gather(x, nranks, ring_id=0, use_calc_stream=True):
     return collective._c_allgather(
@@ -132,6 +133,10 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
     # TODO multi device in dygraph mode not implemented at present time
     def train_batch_sandwich(self, inputs, labels=None, **kwargs):
+        ALPHALOSS = False  
+
+        if ALPHALOSS:
+            alpha = AdaptiveLossSoft()
         # follow sandwich rule in autoslim
         assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
         # self.model.network.train()
@@ -168,7 +173,11 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
         else:
             output = self.model.network.forward(*[to_variable(x) for x in inputs])
-        loss2 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+
+        if ALPHALOSS:
+            loss2 = alpha(output[0], teacher_output[0])
+        else:
+            loss2 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
         loss2.backward()
 
         # sample random subnets as student net and perform distill operation
@@ -179,7 +188,10 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
                 output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
             else:
                 output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            loss3 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+            if ALPHALOSS:
+                loss3 = alpha(output[0], teacher_output[0])
+            else:
+                loss3 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
             loss3.backward()
 
         # change this place to process the output of network 
@@ -295,7 +307,7 @@ class Trainer(Model):
             verbose=2,
             drop_last=False,
             shuffle=True,
-            num_workers=0,
+            num_workers=4,
             callbacks=None, ):
         assert train_data is not None, "train_data must be given!"
 
