@@ -114,6 +114,7 @@ def run(
     save_dir='checkpoints/res48-depth',
     save_freq=20,
     log_freq=100,
+    visualdl_dir="./visualdl_log/autoslim3",
     **kwargs
     ):
     run_config = locals()
@@ -153,7 +154,7 @@ def main(cfg):
     val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
     callbacks = [LRSchedulerM(), 
                  MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase),
-                 paddle.callbacks.VisualDL(log_dir='./visualdl_log/autoslim3')]
+                 paddle.callbacks.VisualDL(log_dir=cfg.visualdl_dir)]
 
     # build resnet48 and teacher net
     net = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=True)
@@ -207,8 +208,8 @@ def main(cfg):
     # calculate loss by ce 
     model.prepare(
         paddle.optimizer.Momentum(
-            learning_rate=LinearWarmup( # delete , for 
-                CosineAnnealingDecay(cfg.lr, cfg.max_epoch, cfg.lr * 0.05), warmup_step, 0., cfg.lr),
+            learning_rate=LinearWarmup( # delete cfg.lr * 0.05 
+                CosineAnnealingDecay(cfg.lr, cfg.max_epoch), warmup_step, 0., cfg.lr),
             momentum=cfg.momentum,
             parameters=model.parameters(),
             weight_decay=cfg.weight_decay),
@@ -223,7 +224,7 @@ def main(cfg):
         save_dir=cfg.save_dir,
         save_freq=cfg.save_freq,
         log_freq=cfg.log_freq,
-        shuffle=True,
+        shuffle=False,
         num_workers=8,
         verbose=2, 
         drop_last=True,

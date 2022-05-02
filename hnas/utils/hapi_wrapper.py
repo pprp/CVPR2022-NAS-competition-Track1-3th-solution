@@ -133,7 +133,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
     # TODO multi device in dygraph mode not implemented at present time
     def train_batch_sandwich(self, inputs, labels=None, **kwargs):
-        ALPHALOSS = False  
+        ALPHALOSS = True 
 
         if ALPHALOSS:
             alpha = AdaptiveLossSoft()
