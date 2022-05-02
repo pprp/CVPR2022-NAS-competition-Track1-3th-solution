@@ -15,3 +15,5 @@ visualdl_log/*
 *.out 
 fairnas.out
 fairnas2_log_nan.out
+train_standalone_list.sh
+train_standalone.sh
