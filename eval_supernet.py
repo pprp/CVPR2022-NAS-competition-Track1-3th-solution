@@ -167,7 +167,7 @@ def main(cfg):
         CrossEntropyLoss(),
         paddle.metric.Accuracy(topk=(1,5)))
 
-    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=1, callbacks=eval_callbacks, json_path=cfg.json_path)
+    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=4, callbacks=eval_callbacks, json_path=cfg.json_path)
 
 
 if __name__ == '__main__':

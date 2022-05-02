@@ -99,6 +99,7 @@ class ResOFA(OFA):
                 self.current_config[key] = v
 
         self._broadcast_ss()
+        return self.current_config 
 
     def active_specific_subnet(self, img_size=None, arch_config: str = None):
         if img_size is None:
@@ -261,7 +262,6 @@ class ResOFA(OFA):
         # calibrate bn
         # TODO: 大batch， 新建dataloader
         for step, data in enumerate(dataloader):
-            print("calibrating bn.................")
             if step > max_iter:
                 break 
             x = data[0]

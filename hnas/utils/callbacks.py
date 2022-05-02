@@ -59,7 +59,7 @@ class MyModelCheckpoint(callbacks.ModelCheckpoint):
         if self.phase is not None:
             path = '{}/final'.format(self.phase)
             print('Phase: load checkpoint at {}'.format(os.path.abspath(path)))
-            self.model.load(path, reset_optimizer=True)
+            self.model.load(path, reset_optimizer=False)
 
         if self.resume is not None:
             path = '{}/final'.format(self.resume)
@@ -68,7 +68,7 @@ class MyModelCheckpoint(callbacks.ModelCheckpoint):
             optim_state = self.load_state_from_path(opt_path)
             self.model.start_epoch = optim_state['epoch'] + 1
             print('start epoch: ', self.model.start_epoch)
-            self.model.load(path)
+            self.model.load(path, reset_optimizer=True)
 
     def on_epoch_end(self, epoch, logs=None):
         if self._is_save() and self.epoch % self.save_freq == 0:

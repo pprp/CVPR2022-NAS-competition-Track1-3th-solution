@@ -11,3 +11,7 @@ channel_sample_whole_dataset.txt
 slurm*
 tmp.txt
 log/*
+visualdl_log/*
+*.out 
+fairnas.out
+fairnas2_log_nan.out

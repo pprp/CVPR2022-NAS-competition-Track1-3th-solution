@@ -82,6 +82,74 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
                 self.ddp_model = paddle.DataParallel(self.model.network)
         self.dyna_bs = cfg.get('dynamic_batch_size', 1)
 
+    def train_batch_sandwich(self, inputs, labels=None, **kwargs):
+        # follow sandwich rule in autoslim
+        assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
+        # self.model.network.train()
+        self.model.network.model.train()
+        self.mode = 'train'
+        inputs = to_list(inputs)
+        self._input_info = _update_input_info(inputs)
+        labels = to_variable(labels).squeeze(0)
+        epoch = kwargs.get('epoch', None)
+        self.epoch = epoch
+        nBatch = kwargs.get('nBatch', None)
+        step = kwargs.get('step', None)
+
+        # set seed 
+        subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
+        np.random.seed(subnet_seed)
+
+        # sample largest subnet as teacher net 
+        largest_config = self.model.network.active_autoslim_subnet(sample_type="largest")
+        self.model.network.set_net_config(largest_config)
+        if self._nranks > 1:
+            teacher_output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+        else:
+            teacher_output = self.model.network.forward(*[to_variable(x) for x in inputs])
+        ### normal forward with gt 
+        loss1 = self.model._loss(input=teacher_output[0], tea_input=None, label=labels)
+        loss1.backward()
+
+        # sample smallest subnet as student net and perform distill operation
+        smallest_config = self.model.network.active_autoslim_subnet(sample_type="smallest")
+        self.model.network.set_net_config(smallest_config)
+        ### forward with inplace distillation
+        if self._nranks > 1:
+            output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+        else:
+            output = self.model.network.forward(*[to_variable(x) for x in inputs])
+        loss2 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+        loss2.backward()
+
+        # sample random subnets as student net and perform distill operation
+        for _ in range(self.dyna_bs-2): 
+            random_config = self.model.network.active_autoslim_subnet(sample_type="random")
+            self.model.network.set_net_config(random_config)
+            if self._nranks > 1:
+                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+            else:
+                output = self.model.network.forward(*[to_variable(x) for x in inputs])
+            loss3 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+            loss3.backward()
+
+        # change this place to process the output of network 
+        # losses = self.model._loss(*(to_list(outputs) + labels))
+        # losses = to_list(loss_list)
+        # final_loss = fluid.layers.sum(losses)
+        # final_loss.backward()
+
+        self.model._optimizer.step()
+        self.model._optimizer.clear_grad()
+
+        metrics = []
+        for metric in self.model._metrics:
+            metric_outs = metric.compute(output[0], labels)
+            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
+            metrics.append(m)
+
+        return ([to_numpy(l) for l in [loss1]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss1]]
+
     # TODO multi device in dygraph mode not implemented at present time
     def train_batch(self, inputs, labels=None, **kwargs):
         assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
@@ -131,8 +199,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         return ([to_numpy(l) for l in losses], metrics) if len(metrics) > 0 else [to_numpy(l) for l in losses]
 
     # TODO multi device in dygraph mode not implemented at present time
-    def train_batch_sandwich(self, inputs, labels=None, **kwargs):
-        # follow sandwich rule in autoslim
+    def train_batch_fair(self, inputs, labels=None, fair_configs=None, **kwargs):
+        # follow fair rule in autoslim
         assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
         # self.model.network.train()
         self.model.network.model.train()
@@ -158,6 +226,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             teacher_output = self.model.network.forward(*[to_variable(x) for x in inputs])
         ### normal forward with gt 
         loss1 = self.model._loss(input=teacher_output[0], tea_input=None, label=labels)
+        if isinstance(loss1, tuple):
+            loss1 = loss1[0] + loss1[1]
         loss1.backward()
 
         # sample smallest subnet as student net and perform distill operation
@@ -172,11 +242,14 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         loss2.backward()
 
         # sample fair subnets as student net and perform distill operation
-        fair_configs = self.model.network.generate_fairnas_configs()
+        # fair_configs = self.model.network.generate_fairnas_configs()
         # ['1557263626762656735323637332626212522272004777000000', '1557255636666666231343533352125252627212001757000000', '1557242676263616137363734312321272325222002747000000', '1557271646161636533373331342422232224262005717000000', '1557227616364626432353235322224242426242006727000000', '1557216656465646334333136372523262121232003767000000', '1557234666567676636313432362727222723252007737000000']
 
         for i in range(len(fair_configs)): 
-            fconfig = self.model.network.active_specific_subnet(arch_config=fair_configs[i])
+            # set random config for compariation
+
+            # fconfig = self.model.network.active_specific_subnet(arch_config=fair_configs[i])
+            fconfig = self.model.network.active_subnet()
             self.model.network.set_net_config(fconfig)
             
             if self._nranks > 1:
@@ -184,6 +257,8 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             else:
                 output = self.model.network.forward(*[to_variable(x) for x in inputs])
             loss3 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+            if isinstance(loss3, tuple):
+                loss3 = loss3[0] + loss3[1]
             loss3.backward()
 
         # change this place to process the output of network 
@@ -388,10 +463,19 @@ class Trainer(Model):
             self._update_inputs()
         return loss
 
+    def train_batch_fair(self, inputs, labels=None, fair_configs=None, **kwargs):
+        # call the function train_batch of adapter
+        loss = self._adapter.train_batch_fair(inputs, labels, fair_configs, **kwargs)
+        if fluid.in_dygraph_mode() and self._input_info is None:
+            self._update_inputs()
+        return loss
+
     def _run_one_epoch(self, data_loader, callbacks, mode, logs={}, **kwargs):
         outputs = []
         if mode == 'train':
             MyRandomResizedCrop.epoch = kwargs.get('epoch', None)
+        
+        fair_configs = self.network.generate_fairnas_configs()
 
         for step, data in enumerate(data_loader):
             # data might come from different types of data_loader and have
@@ -423,11 +507,15 @@ class Trainer(Model):
                     #                                       epoch=kwargs.get('epoch', None),
                     #                                       nBatch=len(data_loader),
                     #                                       step=step)
-                    outs = getattr(self, mode + '_batch_sandwich')(data[:len(self._inputs)],
+                    if step % 10 == 0:
+                        fair_configs = self.network.generate_fairnas_configs()
+
+                    outs = getattr(self, mode + '_batch_fair')(data[:len(self._inputs)],
                                                           data[len(self._inputs):],
                                                           epoch=kwargs.get('epoch', None),
                                                           nBatch=len(data_loader),
-                                                          step=step)
+                                                          step=step,
+                                                          fair_configs=fair_configs)
                     # if step % 100 == 0 and ParallelEnv().local_rank == 0:
                     #     print("after fairnas sampling the net config: ", self.network.gen_subnet_code)
 
@@ -588,7 +676,7 @@ class Trainer(Model):
             self.network.active_specific_subnet(224, config['arch'])
 
             # bn calibration
-            self.network.bn_calibration(eval_loader)
+            # self.network.bn_calibration(eval_loader)
 
             # print(f"after active: {self.network.gen_subnet_code}")
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
@@ -612,7 +700,7 @@ class Trainer(Model):
 
             if ParallelEnv().local_rank == 0:
                 num = json_path.split('_')[-1].split(".")[0]
-                with open(f'checkpoints/results/channel_sample_{num}.txt', 'a') as f:
+                with open(f'checkpoints/results/fairnas/channel_sample_{num}.txt', 'a') as f:
                     f.write('{}\n'.format(sample_res))
 
             save_candidate[arch_name]['acc'] = eval_result['acc_top1']
