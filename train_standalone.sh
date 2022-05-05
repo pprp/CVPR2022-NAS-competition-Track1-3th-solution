@@ -4,8 +4,11 @@
 #SBATCH --gres=gpu:4   # 需要使用的卡数
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
-module load anaconda/2020.11 cuda/11.1 cudnn/8.2.1_cuda11.x nccl/2.11.4-1_cuda11.1
-source activate pp
+module load anaconda/2020.11 
+module load cuda/11.1 
+module load cudnn/8.1.0.77_CUDA11.1
+module load nccl/2.9.6-1_cuda11.0
+source activate pp22
 
 # 为了优化速度问题，将数据集加载到内存中。
 #mkdir -p /dev/shm/imagenet-mini/val

@@ -1,3 +1,4 @@
+from typing import Tuple
 import warnings
 import random
 import numpy as np
@@ -239,7 +240,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         np.random.seed(subnet_seed)
 
         # at first epoch train the teacher arch of each partition
-        if partition_obj.FIRST_EPOCH:
+        if partition_obj.WARMUP_STEP > 0:
             for p_num, p_info in partition_obj.partition_info.items():
                 arch_config = p_info['teacher_arch']
                 current_config = self.model.network.active_specific_subnet(arch_config=arch_config)
@@ -248,9 +249,11 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
                 output = self.one_forward(inputs)
                 ### normal forward with gt
                 loss = self.model._loss(input=output[0], tea_input=None, label=labels)
+                if isinstance(loss, tuple):
+                    loss = loss[0] + loss[1]
                 loss.backward()
 
-            partition_obj.FIRST_EPOCH = False
+            partition_obj.WARMUP_STEP -= 1
 
         # sample random subnets as student net and perform distill operation
         for _ in range(self.dyna_bs):
@@ -279,7 +282,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
                 teacher_arch, stu_arch = stu_arch, teacher_arch
                 p_info['teacher_arch'] = teacher_arch
 
-                del tea_output
+                del tea_output 
                 current_config = self.model.network.active_specific_subnet(arch_config=teacher_arch)
                 self.model.network.set_net_config(current_config)
                 tea_output = self.one_forward(inputs)
@@ -287,16 +290,20 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             # 5.训练teacher
             # normal forward with gt
             loss1 = self.model._loss(input=tea_output[0], tea_input=None, label=labels)
+            if isinstance(loss1, tuple):
+                loss1 = loss1[0]+loss1[1]
+                
             loss1.backward()
 
             # 6.teacher指导student训练
             current_config = self.model.network.active_specific_subnet(arch_config=stu_arch)
             self.model.network.set_net_config(current_config)
             output = self.one_forward(inputs)
-            loss2 = self.model._loss(input=output[0], tea_input=tea_output[0], label=None)
+            loss2 = self.model._loss(input=output[0], tea_input=tea_output[0], label=labels)
+            if isinstance(loss2, tuple):
+                loss2 = loss2[0] + loss2[1]
             loss2.backward()
-            del tea_output
-            gc.collect()
+            del tea_output 
 
         # change this place to process the output of network
         # losses = self.model._loss(*(to_list(outputs) + labels))
@@ -546,10 +553,11 @@ class Trainer(Model):
                     #                                       epoch=kwargs.get('epoch', None),
                     #                                       nBatch=len(data_loader),
                     #                                       step=step)
-                    outs = getattr(self, mode + '_batch_sandwich')(data[:len(self._inputs)],
+                    outs = getattr(self, mode + '_batch_partition_sandwich')(data[:len(self._inputs)],
                                                           data[len(self._inputs):],
                                                           epoch=kwargs.get('epoch', None),
                                                           nBatch=len(data_loader),
+                                                          partition_obj=partition_obj,
                                                           step=step)
                     if step % 100 == 0:
                         print("after autoslim the net config: ", self.network.gen_subnet_code)

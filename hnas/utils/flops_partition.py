@@ -5,6 +5,7 @@ from model import Model
 class FlopsPartition(object):
     FLOPS_LIST = [946450399, 2032925160, 3119399920, 4205874680, 5292349440]
     FIRST_EPOCH = True
+    WARMUP_STEP = 1000
 
     def __init__(self, *args, **kwargs):
         self.partition_info = {
@@ -27,5 +28,6 @@ class FlopsPartition(object):
 
     def get_arch_partition_num(self, arch):
         flops = self.get_arch_flops(arch)
+        # print("arch:", arch, "flops:", flops)
         num = self.get_partition_num(flops)
         return num
