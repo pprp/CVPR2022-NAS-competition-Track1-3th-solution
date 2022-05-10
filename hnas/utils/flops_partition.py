@@ -3,17 +3,19 @@ from model import Model
 
 
 class FlopsPartition(object):
-    FLOPS_LIST = [946450399, 2032925160, 3119399920, 4205874680, 5292349440]
-    FIRST_EPOCH = True
-    WARMUP_STEP = 1000
+    FLOPS_LIST = [946450399, 2465677200, 5292349440]
+    WARMUP_STEP = 500
 
     def __init__(self, *args, **kwargs):
+        # middle teacher network and max teacher network
         self.partition_info = {
-            1: {"teacher_arch": "1346455555550000777777770077777777777700007777777700"},
-            2: {"teacher_arch": "1558533333333333755555555577777777777777777777777777"},
-            3: {"teacher_arch": "1558533333333333222222222255555555555555552222222222"},
-            4: {"teacher_arch": "1558511111111111111111111111111111111111111111111111"},  # 最大网络
+            1: {"teacher_arch": "1336355535150000735333000072625242321200007555350000"},
+            2: {"teacher_arch": "1558511111111111111111111111111111111111111111111111"},  
         }
+    
+    def update_teacher_arch(self, arch):
+        # won't update max teacher network
+        self.partition_info[1]["teacher_arch"] = arch 
 
     def get_partition_num(self, flops):
         for i in range(len(self.FLOPS_LIST) - 1):
@@ -28,6 +30,12 @@ class FlopsPartition(object):
 
     def get_arch_partition_num(self, arch):
         flops = self.get_arch_flops(arch)
-        # print("arch:", arch, "flops:", flops)
         num = self.get_partition_num(flops)
         return num
+
+if __name__ == "__main__":
+    m = FlopsPartition()
+    # arch = "1226333313230000332300000052121222124232424535550000"
+    arch = "1558533333333333755555555577777777777711111111111111"
+    print(m.get_arch_flops(arch))
+    print(m.get_arch_partition_num(arch))

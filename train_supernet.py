@@ -112,6 +112,7 @@ def run(
     pretrained='checkpoints/resnet48.pdparams',
     image_dir='/root/paddlejob/workspace/env_run/data/ILSVRC2012/',
     save_dir='checkpoints/res48-depth',
+    visualdl_log='./visualdl_log/flops_run1',
     save_freq=20,
     log_freq=100,
     **kwargs
@@ -153,7 +154,7 @@ def main(cfg):
     val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
     callbacks = [LRSchedulerM(), 
                  MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase),
-                 paddle.callbacks.VisualDL(log_dir='./visualdl_log/flops_sand_run8')]
+                 paddle.callbacks.VisualDL(log_dir=cfg.visualdl_log)]
 
     # build resnet48 and teacher net
     net = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=True)
@@ -194,7 +195,7 @@ def main(cfg):
 
     ofa_net = ResOFA(sp_model,
                     #  run_config=RunConfig(**default_run_config),
-                     distill_config=DistillConfig(**default_distill_config), # lambda_distill=1.0
+                     distill_config=None, # DistillConfig(**default_distill_config), # lambda_distill=1.0
                      candidate_config=cand_cfg,
                      block_conv_num=2)
 
@@ -223,7 +224,7 @@ def main(cfg):
         save_freq=cfg.save_freq,
         log_freq=cfg.log_freq,
         shuffle=True,
-        num_workers=4,
+        num_workers=8,
         verbose=2, 
         drop_last=True,
         callbacks=callbacks,

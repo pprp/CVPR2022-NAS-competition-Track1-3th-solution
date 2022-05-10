@@ -220,8 +220,104 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         # metrics [[0.671875, 0.87109375]]
         acc = metrics[0][0]
-
         return acc
+    
+    def train_batch_partition_sandwich_dpj(self, inputs, labels=None, partition_obj=None, **kwargs):
+        assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
+        self.model.network.model.train()
+        self.mode = 'train'
+        inputs = to_list(inputs)
+        self._input_info = _update_input_info(inputs)
+        labels = to_variable(labels).squeeze(0)
+        epoch = kwargs.get('epoch', None)
+        self.epoch = epoch
+        nBatch = kwargs.get('nBatch', None)
+        step = kwargs.get('step', None)
+
+        # set seed
+        subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
+        np.random.seed(subnet_seed)
+
+        # at first epoch train the teacher arch of each partition
+        if partition_obj.WARMUP_STEP > 0:
+            for idx, p_info in partition_obj.partition_info.items():
+                arch_config = p_info['teacher_arch']
+                current_config = self.model.network.active_specific_subnet(arch_config=arch_config)
+                self.model.network.set_net_config(current_config)
+
+                output = self.one_forward(inputs)
+                ### normal forward with gt
+                loss = self.model._loss(input=output, tea_input=None, label=labels)
+                if isinstance(loss, tuple):
+                    loss = loss[0] + loss[1]
+                loss.backward()
+
+            partition_obj.WARMUP_STEP -= 1
+
+        # sample random subnets as student net and perform distill operation
+        for _ in range(self.dyna_bs): # from 2 to 4 
+            # 1.前向获取当前子网的acc
+            self.model.network.active_subnet()
+            current_stu_config = self.model.network.current_config
+            self.model.network.set_net_config(current_stu_config)
+            stu_output = self.one_forward(inputs)
+            stu_acc = self.get_acc(stu_output, labels)
+            del stu_output 
+
+            # 2.获取当前子网所在计算量分区
+            stu_arch = self.model.network.gen_subnet_code
+            partition_num = partition_obj.get_arch_partition_num(stu_arch)
+            
+            # if ParallelEnv().local_rank == 0:
+            #     print("choiced partition number:", partition_num, "current warmup step: ", partition_obj.WARMUP_STEP)
+
+            # 3.获取当前分区teacher子网的acc
+            p_info = partition_obj.partition_info[partition_num]
+            teacher_arch = p_info['teacher_arch']
+
+            current_config = self.model.network.active_specific_subnet(arch_config=teacher_arch)
+            self.model.network.set_net_config(current_config)
+            tea_output = self.one_forward(inputs)
+            tea_acc = self.get_acc(tea_output, labels)
+            
+            ## 3.1 teacher 进行前向传播 
+            if partition_obj.WARMUP_STEP < 1:
+                loss = self.model._loss(input=tea_output, tea_input=None, label=labels)
+                loss.backward()
+            
+            ## 3.2 student 进行kd传播             
+            self.model.network.set_net_config(current_stu_config)
+            stu_output = self.one_forward(inputs)
+            loss = self.model._loss(input=stu_output, tea_input=tea_output, label=None)
+            loss.backward()
+            
+            # 4.比较当前子网和teacher子网的acc,谁大,谁为teacher,谁小谁为student
+            if tea_acc < stu_acc and partition_obj.WARMUP_STEP < 1:
+                if ParallelEnv().local_rank == 0:
+                    print(f"update teacher arch: {stu_arch} with acc: {stu_acc}")
+                partition_obj.update_teacher_arch(stu_arch)
+
+        # [add] add smallest sandwich 
+        smallest_config = self.model.network.active_autoslim_subnet(sample_type="smallest")
+        self.model.network.set_net_config(smallest_config)
+        output = self.one_forward(inputs)
+        loss = self.model._loss(input=output, tea_input=tea_output, label=None)
+        loss.backward()
+
+        self.model._optimizer.step()
+        self.model._optimizer.clear_grad()
+
+        metrics = []
+        for metric in self.model._metrics:
+            metric_outs = metric.compute(output[0], labels)
+            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
+            metrics.append(m)
+
+        del output
+
+        return ([to_numpy(l) for l in [loss]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss]]
+
+    
 
     def train_batch_partition_sandwich(self, inputs, labels=None, partition_obj=None, **kwargs):
         assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
@@ -267,6 +363,9 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             # 2.获取当前子网所在计算量分区
             stu_arch = self.model.network.gen_subnet_code
             partition_num = partition_obj.get_arch_partition_num(stu_arch)
+            
+            if ParallelEnv().local_rank == 0:
+                print("choiced partition number:", partition_num)
 
             # 3.获取当前分区teacher子网的acc
             p_info = partition_obj.partition_info[partition_num]
@@ -281,7 +380,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             if tea_acc < stu_acc and partition_num != 4:
                 teacher_arch, stu_arch = stu_arch, teacher_arch
                 p_info['teacher_arch'] = teacher_arch
-
                 del tea_output 
                 current_config = self.model.network.active_specific_subnet(arch_config=teacher_arch)
                 self.model.network.set_net_config(current_config)
@@ -513,7 +611,7 @@ class Trainer(Model):
 
     def train_batch_partition_sandwich(self, inputs, labels=None, partition_obj=None, **kwargs):
         # call the function train_batch of adapter
-        loss = self._adapter.train_batch_partition_sandwich(inputs, labels, partition_obj=partition_obj, **kwargs)
+        loss = self._adapter.train_batch_partition_sandwich_dpj(inputs, labels, partition_obj=partition_obj, **kwargs)
         if fluid.in_dygraph_mode() and self._input_info is None:
             self._update_inputs()
         return loss
@@ -525,19 +623,9 @@ class Trainer(Model):
 
         for step, data in enumerate(data_loader):
             # data might come from different types of data_loader and have
-            # different format, as following:
-            # 1. DataLoader in static graph:
-            #    [[input1, input2, ..., label1, lable2, ...]]
-            # 2. DataLoader in dygraph
-            #    [input1, input2, ..., label1, lable2, ...]
-            # 3. custumed iterator yield concated inputs and labels:
-            #   [input1, input2, ..., label1, lable2, ...]
-            # 4. custumed iterator yield seperated inputs and labels:
-            #   ([input1, input2, ...], [label1, lable2, ...])
-            # To handle all of these, flatten (nested) list to list.
+
             data = flatten(data)
             # LoDTensor.shape is callable, where LoDTensor comes from
-            # DataLoader in static graph
 
             batch_size = data[0].shape()[0] if callable(data[0].shape) else data[0].shape[0]
 
@@ -548,19 +636,15 @@ class Trainer(Model):
                     MyRandomResizedCrop.sample_image_size(step)
                     # call train_batch function
                     # normal training
-                    # outs = getattr(self, mode + '_batch')(data[:len(self._inputs)],
-                    #                                       data[len(self._inputs):],
-                    #                                       epoch=kwargs.get('epoch', None),
-                    #                                       nBatch=len(data_loader),
-                    #                                       step=step)
+
                     outs = getattr(self, mode + '_batch_partition_sandwich')(data[:len(self._inputs)],
                                                           data[len(self._inputs):],
                                                           epoch=kwargs.get('epoch', None),
                                                           nBatch=len(data_loader),
                                                           partition_obj=partition_obj,
                                                           step=step)
-                    if step % 100 == 0:
-                        print("after autoslim the net config: ", self.network.gen_subnet_code)
+                    # if step % 100 == 0:
+                    #     print("after autoslim the net config: ", self.network.gen_subnet_code)
 
                 else:
                     outs = getattr(self, mode + '_batch')(data[:len(self._inputs)], data[len(self._inputs):])
@@ -747,7 +831,7 @@ class Trainer(Model):
 
             if ParallelEnv().local_rank == 0:
                 num = json_path.split('_')[-1].split(".")[0]
-                with open(f'checkpoints/results/calibrationbn/channel_sample_{num}.txt', 'a') as f:
+                with open(f'checkpoints/results/res48-flops-run6/channel_sample_{num}.txt', 'a') as f:
                     f.write('{}\n'.format(sample_res))
 
             save_candidate[arch_name]['acc'] = eval_result['acc_top1']

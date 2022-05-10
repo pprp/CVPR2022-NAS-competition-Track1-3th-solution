@@ -125,7 +125,11 @@ class ResOFA(OFA):
             else:
                 self.current_config[key] = v
 
+        #print('*'*50, 'before broadcast_ss', '*'*50)
+        #print(self.gen_subnet_code)
         self._broadcast_ss()
+        #print('*'*50, 'after broadcast_ss', '*'*50)
+        #print(self.gen_subnet_code)
 
     def active_specific_subnet(self, img_size=None, arch_config: str = None):
         if img_size is None:

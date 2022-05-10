@@ -23,6 +23,7 @@ from paddleslim.nas.ofa.utils import utils
 import paddle.distributed as dist
 from hnas.utils.yacs import CfgNode
 from hnas.models.builder import build_classifier
+from hnas.dataset.h5pyfolder import HDF5DatasetFolder
 
 
 def _loss_forward(self, input, tea_input=None, label=None):
@@ -145,7 +146,11 @@ def main(cfg):
     warmup_step = int(1281024 / (cfg.batch_size * dist.get_world_size())) * cfg.warmup
 
     val_transforms = Compose([Resize(256), CenterCrop(224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
-    val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
+    # val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
+    val_set = HDF5DatasetFolder(
+        "checkpoints/imagenetmini_val.h5",
+        transform=val_transforms
+    )
 
     eval_callbacks = [EvalCheckpoint('{}/final'.format(cfg.save_dir))]
 
@@ -183,7 +188,7 @@ def main(cfg):
         CrossEntropyLoss(),
         paddle.metric.Accuracy(topk=(1,5)))
 
-    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=1, callbacks=eval_callbacks, json_path=cfg.json_path)
+    model.evaluate_whole_test(val_set, batch_size=cfg.batch_size, num_workers=8, callbacks=eval_callbacks, json_path=cfg.json_path)
 
 
 if __name__ == '__main__':

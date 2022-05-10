@@ -1,8 +1,8 @@
 import glob 
 import json 
 
-result_path = "./checkpoints/standalone/results.json"
-result_txts = glob.glob("./checkpoints/standalone/*.txt")
+result_path = "./checkpoints/results/res48-flops-run6/flops-run6.json"
+result_txts = glob.glob("./checkpoints/results/res48-flops-run6/*.txt")
 
 # analyse txt files line by line 
 result_dict = dict() 
