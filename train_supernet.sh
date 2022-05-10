@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -N 1     # 需要使用的节点数
-#SBATCH -J flops7      # 作业名字
+#SBATCH -J flops9      # 作业名字
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
 module load anaconda/2020.11 
@@ -26,16 +26,16 @@ image_dir=/dev/shm/imagenet-mini
 # 测试flops sandwich 
 
 # 此处可填写运行程序的命令
-python3 train_supernet.py run \
+python3 -u train_supernet.py run \
   --backbone resnet48_prelu \
   --max_epoch 70 \
   --batch_size 256 \
-  --lr 0.01 \
+  --lr 0.001 \
   --warmup 5 \
-  --dyna_batch_size 2 \
+  --dyna_batch_size 8 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-flops-run8 \
-  --visualdl_log visualdl_log/flops_run8 \
+  --save_dir checkpoints/res48-flops-run9 \
+  --visualdl_log visualdl_log/flops_run9 \
   --log_freq 50 \
   --image_dir $image_dir 
   # --resume checkpoints/res48-autoslim \
@@ -58,3 +58,4 @@ python3 train_supernet.py run \
 # flops_run6: dpj dyna-2 的size设置, patition step=500, warmup_step < 100就开始更新教师网络, 4 gpus, 怀疑崩溃原因是最大网络训练次数过多，尽量满足三明治原则。
 # flops_run7: dpj dyna=4 设置，partitionstep=500,warmup_step<1 OOM dyna=2
 # flops_run8: dpj dyna=4 设置，partitionstep=500,warmup_step<1 OOM dyna=2, learning rate=0.01 gpu=8, OOM , dyna=2
+# flops_run9: v2 dyna=8  learning rate=0.001

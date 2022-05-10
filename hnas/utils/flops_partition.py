@@ -3,13 +3,13 @@ from model import Model
 
 
 class FlopsPartition(object):
-    FLOPS_LIST = [946450399, 2465677200, 5292349440]
+    FLOPS_LIST = [946450399, 2755583936, 5292349440]
     WARMUP_STEP = 500
 
     def __init__(self, *args, **kwargs):
         # middle teacher network and max teacher network
         self.partition_info = {
-            1: {"teacher_arch": "1336355535150000735333000072625242321200007555350000"},
+            1: {"teacher_arch": "1336333333330000333333000033333333333300003333330000"},
             2: {"teacher_arch": "1558511111111111111111111111111111111111111111111111"},  
         }
     
