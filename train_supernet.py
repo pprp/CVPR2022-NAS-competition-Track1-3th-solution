@@ -224,7 +224,7 @@ def main(cfg):
         save_dir=cfg.save_dir,
         save_freq=cfg.save_freq,
         log_freq=cfg.log_freq,
-        shuffle=False,
+        shuffle=True,
         num_workers=8,
         verbose=2, 
         drop_last=True,
