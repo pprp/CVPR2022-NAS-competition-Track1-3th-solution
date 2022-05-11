@@ -195,7 +195,7 @@ def main(cfg):
 
     ofa_net = ResOFA(sp_model,
                     #  run_config=RunConfig(**default_run_config),
-                     distill_config=None, # DistillConfig(**default_distill_config), # lambda_distill=1.0
+                     distill_config=DistillConfig(**default_distill_config), # lambda_distill=1.0, # DistillConfig(**default_distill_config), # lambda_distill=1.0
                      candidate_config=cand_cfg,
                      block_conv_num=2)
 

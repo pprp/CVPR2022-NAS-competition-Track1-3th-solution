@@ -488,6 +488,92 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         return ([to_numpy(l) for l in [loss2]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss2]]
 
+    def get_specific_depth_bigest_arch(self, arch):
+        bigest_arch = arch[:5]
+        for i in range(5, len(arch)):
+            if arch[i] != '0':
+                c = '1'
+            else:
+                c = '0'
+            bigest_arch += c
+
+        return bigest_arch
+
+    def get_specific_depth_smallest_arch(self, arch):
+        bigest_arch = arch[:5]
+        for i in range(5, len(arch)):
+            if arch[i] != '0':
+                c = '7'
+            else:
+                c = '0'
+            bigest_arch += c
+
+        return bigest_arch
+
+    def train_batch_partition_sandwich_v3(self, inputs, labels=None, partition_obj=None, **kwargs):
+        assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
+        self.model.network.model.train()
+        self.mode = 'train'
+        inputs = to_list(inputs)
+        self._input_info = _update_input_info(inputs)
+        labels = to_variable(labels).squeeze(0)
+        epoch = kwargs.get('epoch', None)
+        self.epoch = epoch
+        nBatch = kwargs.get('nBatch', None)
+        step = kwargs.get('step', None)
+
+        # set seed
+        subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
+        np.random.seed(subnet_seed)
+
+        # sample random subnets as student net and perform distill operation
+        for _ in range(self.dyna_bs):
+            # 1.随机采样子网
+            self.model.network.active_subnet()
+            self.model.network.set_net_config(self.model.network.current_config)
+            sampled_arch = self.model.network.gen_subnet_code
+
+            # 2.通过采样子网深度,获取当前深度最大网络为teacher
+            biggest_arch = self.get_specific_depth_bigest_arch(sampled_arch)
+            self.model.network.active_specific_subnet(arch_config=biggest_arch)
+            self.model.network.set_net_config(self.model.network.current_config)
+            tea_output = self.one_forward(inputs)
+            loss1 = self.model._loss(input=tea_output[0], tea_input=None, label=labels)
+            if isinstance(loss1, tuple):
+                loss1 = loss1[0] + loss1[1]
+            loss1.backward()
+
+            # 3.通过当前采样子网深度,获取当前深度最小网络
+            smallest_arch = self.get_specific_depth_smallest_arch(sampled_arch)
+            self.model.network.active_specific_subnet(arch_config=smallest_arch)
+            stu_output = self.one_forward(inputs)
+            loss3 = self.model._loss(input=stu_output[0], tea_input=tea_output[0], label=None)
+            if isinstance(loss3, tuple):
+                loss3 = loss3[0] + loss3[1]
+            loss3.backward()
+
+            # 4.teacher指导随机采样的子网训练
+            self.model.network.active_specific_subnet(arch_config=sampled_arch)
+            output = self.one_forward(inputs)
+            loss2 = self.model._loss(input=output[0], tea_input=tea_output[0], label=None)
+            if isinstance(loss2, tuple):
+                loss2 = loss2[0] + loss2[1]
+            loss2.backward()
+            gc.collect()
+
+        self.model._optimizer.step()
+        self.model._optimizer.clear_grad()
+
+        metrics = []
+        for metric in self.model._metrics:
+            metric_outs = metric.compute(output[0], labels)
+            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
+            metrics.append(m)
+
+        del output
+
+        return ([to_numpy(l) for l in [loss2]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss2]]
+
     def eval_batch(self, inputs, labels=None):
         self.model.network.eval()
         self.model.network.model.eval()
@@ -677,7 +763,7 @@ class Trainer(Model):
 
     def train_batch_partition_sandwich(self, inputs, labels=None, partition_obj=None, **kwargs):
         # call the function train_batch of adapter
-        loss = self._adapter.train_batch_partition_sandwich_v2(inputs, labels, partition_obj=partition_obj, **kwargs)
+        loss = self._adapter.train_batch_partition_sandwich_v3(inputs, labels, partition_obj=partition_obj, **kwargs)
         if fluid.in_dygraph_mode() and self._input_info is None:
             self._update_inputs()
         return loss
