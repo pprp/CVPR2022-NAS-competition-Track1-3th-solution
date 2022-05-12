@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -N 1     # 需要使用的节点数
-#SBATCH -J flops10      # 作业名字
+#SBATCH -J flops11      # 作业名字
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
 module load anaconda/2020.11 
@@ -32,10 +32,10 @@ python3 -u train_supernet.py run \
   --batch_size 256 \
   --lr 0.001 \
   --warmup 5 \
-  --dyna_batch_size 8 \
+  --dyna_batch_size 2 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48-flops-run10 \
-  --visualdl_log visualdl_log/flops_run10 \
+  --save_dir checkpoints/res48-flops-run11 \
+  --visualdl_log visualdl_log/flops_run11 \
   --log_freq 50 \
   --image_dir $image_dir 
   # --resume checkpoints/res48-autoslim \
@@ -60,3 +60,4 @@ python3 -u train_supernet.py run \
 # flops_run8: dpj dyna=4 设置，partitionstep=500,warmup_step<1 OOM dyna=2, learning rate=0.01 gpu=8, OOM , dyna=2
 # flops_run9: v2 dyna=8  learning rate=0.001 固定teacher
 # flops_run10: v3 dyna=8  learning rate=0.001 根据depth选teacher
+# flops_run11: v4 dyna=2  learning rate=0.001 random sample 根据depth选 random max random min,  whole max kd (whole min, random min, random,  random max)
