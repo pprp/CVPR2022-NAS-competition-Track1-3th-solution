@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -N 1     # 需要使用的节点数
-#SBATCH -J rk6      # 作业名字
+#SBATCH -J rk7      # 作业名字
 # 需要使用的卡数
 
 module load cuda/11.0
@@ -29,11 +29,11 @@ python train_supernet.py run \
   --warmup 5 \
   --dyna_batch_size 4 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir checkpoints/res48_prelu_rankloss_run6 \
+  --save_dir checkpoints/rankloss_prelu_run7 \
   --log_freq 50 \
-  --visualdl_dir "./visualdl_log/res48_prelu_rankloss_run6" \
-  --image_dir $image_dir
-  # --resume checkpoints/res48-autoslim4 \
+  --visualdl_dir "./visualdl_log/rankloss_prelu_run7" \
+  --image_dir $image_dir \
+  #--resume checkpoints/res48_prelu_rankloss_run5
 
 # autoslim3: wd=0 cosine_fix=0.05 max_epoch=100 
 # autoslim_baseline: autoslim方法。
@@ -48,8 +48,8 @@ python train_supernet.py run \
 
 # for adjust parameter setting of rank loss 
 
-# rankloss_run5: 使用rank_loss,coeff=1, sample 3 times, prelu 65.9
+# rankloss_run5: 使用rank_loss, coeff=1, sample 3 times, prelu 65.9
 # rankloss_run6: 使用rank_loss, coeff=1, prelu, sample 6 times 
+# rankloss_run7: 使用rank_loss, coeff=1, prelu, sample 2 times zencore去掉shortcut 
 
-
-# rankloss_resume_run1: 
+# rankloss_resume_run1: epoch=30 [load from epoch 70]

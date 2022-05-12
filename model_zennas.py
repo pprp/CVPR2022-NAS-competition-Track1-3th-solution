@@ -69,7 +69,7 @@ class BasicBlock(nn.Layer):
             self.downsample = None
 
     def forward(self, x):
-        identity = x
+        # identity = x
 
         x = self.conv1(x)
         x = self.bn1(x)
@@ -78,10 +78,10 @@ class BasicBlock(nn.Layer):
         x = self.conv2(x)
         x = self.bn2(x)
 
-        if self.downsample is not None:
-            identity = self.downsample(identity)
+        # if self.downsample is not None:
+        #     identity = self.downsample(identity)
 
-        x += identity
+        # x += identity
         x = self.relu(x)
 
         return x

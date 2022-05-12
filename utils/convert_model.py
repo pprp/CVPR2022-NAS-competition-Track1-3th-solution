@@ -38,6 +38,6 @@ def convert_single2multi(final_path, save_path):
     paddle.save(new, save_path)
 
 if __name__ == "__main__":
-    final_path = "checkpoints/res48_prelu_rankloss_run5/final_multi.pdparams"
-    save_path = "checkpoints/res48_prelu_rankloss_run5/final.pdparams"
+    final_path = "checkpoints/res48_prelu_rankloss_run5/final_multi.pdopt"
+    save_path = "checkpoints/res48_prelu_rankloss_run5/final.pdopt"
     convert_multi2single(final_path, save_path)

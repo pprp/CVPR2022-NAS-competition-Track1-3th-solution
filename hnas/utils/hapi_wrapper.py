@@ -139,6 +139,106 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         return ([to_numpy(l) for l in losses], metrics) if len(metrics) > 0 else [to_numpy(l) for l in losses]
 
     # TODO multi device in dygraph mode not implemented at present time
+    def train_batch_sandwich_with_only_rank(self, inputs, labels=None, **kwargs):
+        # follow sandwich rule in autoslim
+        assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
+        # self.model.network.train()
+        self.model.network.model.train()
+        self.mode = 'train'
+        inputs = to_list(inputs)
+        self._input_info = _update_input_info(inputs)
+        labels = to_variable(labels).squeeze(0)
+        epoch = kwargs.get('epoch', None)
+        self.epoch = epoch
+        nBatch = kwargs.get('nBatch', None)
+        step = kwargs.get('step', None)
+
+        # set seed 
+        subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
+        np.random.seed(subnet_seed)
+
+        # sample largest subnet as teacher net 
+        # largest_config = self.model.network.active_autoslim_subnet(sample_type="largest")
+        # self.model.network.set_net_config(largest_config)
+        # if self._nranks > 1:
+        #     teacher_output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+        # else:
+        #     teacher_output = self.model.network.forward(*[to_variable(x) for x in inputs])
+        # ### normal forward with gt 
+        # loss1 = self.model._loss(input=teacher_output[0], tea_input=None, label=labels)
+        # loss1.backward()
+
+        # sample smallest subnet as student net and perform distill operation
+        # smallest_config = self.model.network.active_autoslim_subnet(sample_type="smallest")
+        # self.model.network.set_net_config(smallest_config)
+        # ### forward with inplace distillation
+        # if self._nranks > 1:
+        #     output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+        # else:
+        #     output = self.model.network.forward(*[to_variable(x) for x in inputs])
+
+        # loss2 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+        # loss2.backward()
+        # del output 
+
+
+        # sample random subnets as student net and perform distill operation
+        # for _ in range(self.dyna_bs-2): 
+        #     random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
+        #     self.model.network.set_net_config(random_config1)
+        #     if self._nranks > 1:
+        #         output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+        #     else:
+        #         output = self.model.network.forward(*[to_variable(x) for x in inputs])
+            
+        #     loss = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
+        #     loss.backward()
+        #     del output
+
+        for _ in range(4):
+            # generate two sample to compare with each other 
+            random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
+            self.model.network.set_net_config(random_config1)
+            flops1 = get_arch_flops(self.model.network.gen_subnet_code)
+            if self._nranks > 1:
+                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+            else:
+                output = self.model.network.forward(*[to_variable(x) for x in inputs])
+            loss3 = self.model._loss(input=output[0],tea_input=None, label=labels)
+            del output
+
+            random_config2 = self.model.network.active_autoslim_subnet(sample_type="random")
+            self.model.network.set_net_config(random_config2)
+            flops2 = get_arch_flops(self.model.network.gen_subnet_code)
+            if self._nranks > 1:
+                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
+            else:
+                output = self.model.network.forward(*[to_variable(x) for x in inputs])
+            loss4 = self.model._loss(input=output[0],tea_input=None, label=labels)
+            del output
+            
+            loss5 = self.pairwise_rankloss(flops1, flops2, loss3, loss4)
+            loss5.backward()
+
+        # change this place to process the output of network 
+        # losses = self.model._loss(*(to_list(outputs) + labels))
+        # losses = to_list(loss_list)
+        # final_loss = fluid.layers.sum(losses)
+        # final_loss.backward()
+
+        self.model._optimizer.step()
+        self.model._optimizer.clear_grad()
+
+        metrics = []
+        for metric in self.model._metrics:
+            metric_outs = metric.compute(output[0], labels)
+            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
+            metrics.append(m)
+
+        return ([to_numpy(l) for l in [loss5]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss5]]
+         
+
+    # TODO multi device in dygraph mode not implemented at present time
     def train_batch_sandwich_with_rank(self, inputs, labels=None, **kwargs):
         # follow sandwich rule in autoslim
         assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
@@ -195,7 +295,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             loss.backward()
             del output
 
-        for _ in range(6):
+        for _ in range(2):
             # generate two sample to compare with each other 
             random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
             self.model.network.set_net_config(random_config1)
@@ -293,7 +393,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             loss.backward()
             del output
 
-        for _ in range(self.dyna_bs - 1):
+        for _ in range(self.dyna_bs - 2):
             # generate two sample to compare with each other 
             random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
             self.model.network.set_net_config(random_config1)
@@ -609,7 +709,7 @@ class Trainer(Model):
 
     def train_batch_sandwich(self, inputs, labels=None, **kwargs):
         # call the function train_batch of adapter
-        loss = self._adapter.train_batch_sandwich_with_rank(inputs, labels, **kwargs)
+        loss = self._adapter.train_batch_sandwich_with_zenscore(inputs, labels, **kwargs)
         if fluid.in_dygraph_mode() and self._input_info is None:
             self._update_inputs()
         return loss
