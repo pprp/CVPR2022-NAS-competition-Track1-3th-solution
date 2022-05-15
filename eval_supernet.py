@@ -23,6 +23,7 @@ from paddleslim.nas.ofa.utils import utils
 import paddle.distributed as dist
 from hnas.utils.yacs import CfgNode
 from hnas.models.builder import build_classifier
+from hnas.dataset.h5pyfolder import HDF5DatasetFolder
 
 
 def _loss_forward(self, input, tea_input, label=None):
@@ -130,6 +131,7 @@ def main(cfg):
 
     val_transforms = Compose([Resize(256), CenterCrop(224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
     val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
+    # val_set = HDF5DatasetFolder("/data/home/scv6681/run/data/hdf5/imagenetmini_val.h5", transform=val_transforms)
 
     eval_callbacks = [EvalCheckpoint('{}/final'.format(cfg.save_dir))]
 

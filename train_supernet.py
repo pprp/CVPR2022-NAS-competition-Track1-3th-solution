@@ -151,7 +151,7 @@ def main(cfg):
     ])
     val_transforms = Compose([Resize(256), CenterCrop(224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
     train_set = DatasetFolder(os.path.join(cfg.image_dir, 'train'), transform=transforms)
-    val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
+    # val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
     callbacks = [LRSchedulerM(), 
                  MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase),
                  paddle.callbacks.VisualDL(log_dir=cfg.visualdl_dir)]
