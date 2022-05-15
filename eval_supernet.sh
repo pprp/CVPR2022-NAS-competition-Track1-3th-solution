@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -N 1     # 需要使用的节点数
-#SBATCH -J eval_mini2      # 作业名字
+#SBATCH -J e19th      # 作业名字
 #SBATCH --gres=gpu:1   # 需要使用的卡数
 
 #此处可填写加载程序运行所需环境（根据软件需求，可使用 module load export 等方式加载）
@@ -16,26 +16,26 @@ JSON_PATH1=$1
 # mkdir -p /dev/shm/imagenet-mini/val 
 # unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
 
-#mkdir -p /dev/shm/imagenet-mini
+mkdir -p /dev/shm/imagenet-mini
 ## unzip -n /data/home/scv6681/run/data/imagenet_mini_train.zip -d /dev/shm/imagenet-mini > /dev/null
-#unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
-#image_dir=/dev/shm/imagenet-mini
+unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
+image_dir=/dev/shm/imagenet-mini
 
 # double imagenet-mini
-mkdir -p /dev/shm/imagenet-mini-double
-cp -rf /data/home/scv6681/run/data/imagenet-mini-double/val  /dev/shm/imagenet-mini-double
-image_dir=/dev/shm/imagenet-mini-double
+#mkdir -p /dev/shm/imagenet-mini-double
+#cp -rf /data/home/scv6681/run/data/imagenet-mini-double/val  /dev/shm/imagenet-mini-double
+#image_dir=/dev/shm/imagenet-mini-double
 
 # 此处可填写运行程序的命令
 python3 -u eval_supernet.py run \
-  --backbone resnet48_prelu \
-  --batch_size 256 \
+  --backbone resnet48_mish \
+  --batch_size 64 \
   --lr 0.001 \
   --warmup 5 \
   --dyna_batch_size 2 \
   --pretrained checkpoints/resnet48.pdparams \
-  --save_dir /data/home/scv6681/run/cvpr22/best_rcnas_rank_loss/checkpoints/res48_prelu_rankloss_run2 \
+  --save_dir checkpoints/19th_rkloss_mish_flops_latedecay_sandwich_2times \
   --log_freq 1 \
-  --resume /data/home/scv6681/run/cvpr22/best_rcnas_rank_loss/checkpoints/res48_prelu_rankloss_run2 \
+  --resume checkpoints/19th_rkloss_mish_flops_latedecay_sandwich_2times \
   --json_path  $JSON_PATH1 \
   --image_dir  $image_dir
