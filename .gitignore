@@ -1,0 +1,4 @@
+checkpoints/*
+*.out
+*.pyc
+visualdl_log/*
