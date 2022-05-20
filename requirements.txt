@@ -1,3 +1,4 @@
-paddle==2.1.0
+paddle==2.2.2
 fire
 matplotlib
+visualdl 

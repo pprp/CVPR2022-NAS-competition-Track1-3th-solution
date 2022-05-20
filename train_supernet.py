@@ -1,27 +1,29 @@
 import os
 
 import paddle
+import paddle.distributed as dist
 import paddle.nn as nn
-from paddle.nn import CrossEntropyLoss
-from paddle.vision.transforms import (
-    RandomHorizontalFlip, RandomResizedCrop, SaturationTransform, 
-    Compose, Resize, HueTransform, BrightnessTransform, ContrastTransform, 
-    RandomCrop, Normalize, RandomRotation, CenterCrop)
 from paddle.io import DataLoader
-from paddle.optimizer.lr import CosineAnnealingDecay, MultiStepDecay, LinearWarmup
+from paddle.nn import CrossEntropyLoss
+from paddle.optimizer.lr import (CosineAnnealingDecay, LinearWarmup,
+                                 MultiStepDecay)
+from paddle.vision.datasets import DatasetFolder
+from paddle.vision.transforms import (BrightnessTransform, CenterCrop, Compose,
+                                      ContrastTransform, HueTransform,
+                                      Normalize, RandomCrop,
+                                      RandomHorizontalFlip, RandomResizedCrop,
+                                      RandomRotation, Resize,
+                                      SaturationTransform)
 
+from hnas.dataset.random_size_crop import MyRandomResizedCrop
+from hnas.models.builder import build_classifier
 from hnas.utils.callbacks import LRSchedulerM, MyModelCheckpoint
 from hnas.utils.transforms import ToArray
-from hnas.dataset.random_size_crop import MyRandomResizedCrop
-from paddle.vision.datasets import DatasetFolder
-
-from paddleslim.nas.ofa.convert_super import Convert, supernet
-from paddleslim.nas.ofa import RunConfig, DistillConfig, ResOFA
-from paddleslim.nas.ofa.utils import utils
-
-import paddle.distributed as dist
 from hnas.utils.yacs import CfgNode
-from hnas.models.builder import build_classifier
+from paddleslim.nas.ofa import DistillConfig, ResOFA, RunConfig
+from paddleslim.nas.ofa.convert_super import Convert, supernet
+from paddleslim.nas.ofa.utils import utils
+from hnas.utils.hapi_wrapper import Trainer
 
 
 def _loss_forward(self, input, tea_input=None, label=None):
@@ -59,7 +61,6 @@ def _loss_forward(self, input, tea_input=None, label=None):
         return kd 
     elif label is not None:
         # normal cross entropy 
-        # print("line 62: ", input.shape, label.shape)
         ce = paddle.nn.functional.cross_entropy(
             input,
             label,
@@ -83,19 +84,15 @@ def _compute(self, pred, tea_pred, label=None, *args):
         pred, axes=[len(pred.shape) - 1], starts=[0], ends=[self.maxk])
     if (len(label.shape) == 1) or \
         (len(label.shape) == 2 and label.shape[-1] == 1):
-        # In static mode, the real label data shape may be different
-        # from shape defined by paddle.static.InputSpec in model
-        # building, reshape to the right shape.
         label = paddle.reshape(label, (-1, 1))
     elif label.shape[-1] != 1:
-        # one-hot label
         label = paddle.argmax(label, axis=-1, keepdim=True)
     correct = pred == label
     return paddle.cast(correct, dtype='float32')
 
 paddle.metric.Accuracy.compute = _compute
 
-from hnas.utils.hapi_wrapper import Trainer
+
 
 def run(
     backbone='resnet48',
