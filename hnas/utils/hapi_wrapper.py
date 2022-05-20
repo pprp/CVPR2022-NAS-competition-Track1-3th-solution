@@ -980,14 +980,12 @@ class Trainer(Model):
             json_path=None):
 
         candidate_path = json_path 
-        #"checkpoints/CVPR_2022_NAS_Track1_test.json"
 
         with open(candidate_path, "r") as f:
             candidate_dict = json.load(f)
             save_candidate = candidate_dict.copy()
 
         if eval_data is not None and isinstance(eval_data, Dataset):
-            # eval_sampler = DistributedBatchSampler(eval_data, batch_size=batch_size)
             eval_sampler = None 
             eval_loader = DataLoader(
                 eval_data, 
@@ -1023,16 +1021,8 @@ class Trainer(Model):
             s1 = time.time() 
             cbks.on_begin('eval', {'steps': eval_steps, 'metrics': self._metrics_name()})
 
-            # print(f"before active: {config['arch']}")
             self.network.active_specific_subnet(224, config['arch'])
 
-            # bn calibration
-            # self.network.bn_calibration(eval_loader)
-
-            # bn calibration with large batch size !! bs should larger than 1024 
-            # self.network.model.apply(self.network.large_batch_bn_calibration)
-
-            # print(f"after active: {self.network.gen_subnet_code}")
             logs = self._run_one_epoch(eval_loader, cbks, 'eval')
             
             s3 = time.time()

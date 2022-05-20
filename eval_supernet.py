@@ -1,29 +1,20 @@
 import os
-import cv2 
 
 import paddle
-import paddle.nn as nn
-from paddle.nn import CrossEntropyLoss
-from paddle.vision.transforms import (
-    RandomHorizontalFlip, RandomResizedCrop, SaturationTransform, 
-    Compose, Resize, HueTransform, BrightnessTransform, ContrastTransform, 
-    RandomCrop, Normalize, RandomRotation, CenterCrop)
-from paddle.io import DataLoader
-from paddle.optimizer.lr import CosineAnnealingDecay, MultiStepDecay, LinearWarmup
-
-from hnas.utils.callbacks import LRSchedulerM, MyModelCheckpoint, EvalCheckpoint
-from hnas.utils.transforms import ToArray
-from hnas.dataset.random_size_crop import MyRandomResizedCrop
-from paddle.vision.datasets import DatasetFolder
-
-from paddleslim.nas.ofa.convert_super import Convert, supernet
-from paddleslim.nas.ofa import RunConfig, DistillConfig, ResOFA
-from paddleslim.nas.ofa.utils import utils
-
 import paddle.distributed as dist
-from hnas.utils.yacs import CfgNode
+from paddle.nn import CrossEntropyLoss
+from paddle.optimizer.lr import CosineAnnealingDecay, LinearWarmup
+from paddle.vision.datasets import DatasetFolder
+from paddle.vision.transforms import CenterCrop, Compose, Normalize, Resize
+
 from hnas.models.builder import build_classifier
-from hnas.dataset.h5pyfolder import HDF5DatasetFolder
+from hnas.utils.callbacks import EvalCheckpoint
+from hnas.utils.transforms import ToArray
+from hnas.utils.yacs import CfgNode
+from paddleslim.nas.ofa import DistillConfig, ResOFA
+from paddleslim.nas.ofa.convert_super import Convert, supernet
+from paddleslim.nas.ofa.utils import utils
+from hnas.utils.hapi_wrapper import Trainer
 
 
 def _loss_forward(self, input, tea_input, label=None):
@@ -81,7 +72,7 @@ def _compute(self, pred, tea_pred, label=None, *args):
 
 paddle.metric.Accuracy.compute = _compute
 
-from hnas.utils.hapi_wrapper import Trainer
+
 
 def run(
     backbone='resnet48',
