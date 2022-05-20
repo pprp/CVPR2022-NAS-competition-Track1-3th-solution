@@ -10,3 +10,7 @@ channel_sample.txt
 channel_sample_whole_dataset.txt
 slurm*
 tmp.txt
+visualdl_log/*
+*.log 
+error_autoslim40e.out
+ofa_depth_part.out

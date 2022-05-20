@@ -59,7 +59,7 @@ class MyModelCheckpoint(callbacks.ModelCheckpoint):
         if self.phase is not None:
             path = '{}/final'.format(self.phase)
             print('Phase: load checkpoint at {}'.format(os.path.abspath(path)))
-            self.model.load(path, reset_optimizer=True)
+            self.model.load(path, reset_optimizer=False)
 
         if self.resume is not None:
             path = '{}/final'.format(self.resume)

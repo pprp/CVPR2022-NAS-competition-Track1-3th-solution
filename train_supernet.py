@@ -102,7 +102,7 @@ def run(
     image_size='224',
     max_epoch=120,
     lr=0.0025,
-    weight_decay=0,
+    weight_decay=0.,
     momentum=0.9,
     batch_size=80,
     dyna_batch_size=4,
@@ -114,6 +114,7 @@ def run(
     save_dir='checkpoints/res48-depth',
     save_freq=20,
     log_freq=100,
+    visualdl_dir="./visualdl_log/autoslim3",
     **kwargs
     ):
     run_config = locals()
@@ -150,9 +151,10 @@ def main(cfg):
     ])
     val_transforms = Compose([Resize(256), CenterCrop(224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
     train_set = DatasetFolder(os.path.join(cfg.image_dir, 'train'), transform=transforms)
-    val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
+    # val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
     callbacks = [LRSchedulerM(), 
-                 MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase)]
+                 MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase),
+                 paddle.callbacks.VisualDL(log_dir=cfg.visualdl_dir)]
 
     # build resnet48 and teacher net
     net = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=True)
@@ -206,7 +208,7 @@ def main(cfg):
     # calculate loss by ce 
     model.prepare(
         paddle.optimizer.Momentum(
-            learning_rate=LinearWarmup(
+            learning_rate=LinearWarmup( # delete cfg.lr * 0.05 
                 CosineAnnealingDecay(cfg.lr, cfg.max_epoch), warmup_step, 0., cfg.lr),
             momentum=cfg.momentum,
             parameters=model.parameters(),
@@ -223,13 +225,13 @@ def main(cfg):
         save_freq=cfg.save_freq,
         log_freq=cfg.log_freq,
         shuffle=True,
-        num_workers=1,
+        num_workers=8,
         verbose=2, 
         drop_last=True,
         callbacks=callbacks,
     )
 
-    model.evaluate(val_set, batch_size=cfg.batch_size, num_workers=1, eval_sample_num=10)
+    # model.evaluate(val_set, batch_size=cfg.batch_size, num_workers=1, eval_sample_num=3)
 
 
 if __name__ == '__main__':
