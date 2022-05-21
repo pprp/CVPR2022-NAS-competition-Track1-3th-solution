@@ -2,28 +2,21 @@ import os
 
 import paddle
 import paddle.distributed as dist
-import paddle.nn as nn
-from paddle.io import DataLoader
 from paddle.nn import CrossEntropyLoss
-from paddle.optimizer.lr import (CosineAnnealingDecay, LinearWarmup,
-                                 MultiStepDecay)
+from paddle.optimizer.lr import CosineAnnealingDecay, LinearWarmup
 from paddle.vision.datasets import DatasetFolder
-from paddle.vision.transforms import (BrightnessTransform, CenterCrop, Compose,
-                                      ContrastTransform, HueTransform,
-                                      Normalize, RandomCrop,
-                                      RandomHorizontalFlip, RandomResizedCrop,
-                                      RandomRotation, Resize,
-                                      SaturationTransform)
+from paddle.vision.transforms import (CenterCrop, Compose, Normalize,
+                                      RandomHorizontalFlip, Resize)
 
 from hnas.dataset.random_size_crop import MyRandomResizedCrop
 from hnas.models.builder import build_classifier
 from hnas.utils.callbacks import LRSchedulerM, MyModelCheckpoint
+from hnas.utils.hapi_wrapper import Trainer
 from hnas.utils.transforms import ToArray
 from hnas.utils.yacs import CfgNode
-from paddleslim.nas.ofa import DistillConfig, ResOFA, RunConfig
+from paddleslim.nas.ofa import DistillConfig, ResOFA
 from paddleslim.nas.ofa.convert_super import Convert, supernet
 from paddleslim.nas.ofa.utils import utils
-from hnas.utils.hapi_wrapper import Trainer
 
 
 def _loss_forward(self, input, tea_input=None, label=None):
@@ -58,9 +51,9 @@ def _loss_forward(self, input, tea_input=None, label=None):
             reduction=self.reduction,
             soft_label=True,
             axis=self.axis)
-        return kd 
+        return kd
     elif label is not None:
-        # normal cross entropy 
+        # normal cross entropy
         ce = paddle.nn.functional.cross_entropy(
             input,
             label,
@@ -74,7 +67,9 @@ def _loss_forward(self, input, tea_input=None, label=None):
     else:
         raise "Not Implemented Loss."
 
+
 CrossEntropyLoss.forward = _loss_forward
+
 
 def _compute(self, pred, tea_pred, label=None, *args):
     if label is None:
@@ -83,15 +78,15 @@ def _compute(self, pred, tea_pred, label=None, *args):
     pred = paddle.slice(
         pred, axes=[len(pred.shape) - 1], starts=[0], ends=[self.maxk])
     if (len(label.shape) == 1) or \
-        (len(label.shape) == 2 and label.shape[-1] == 1):
+            (len(label.shape) == 2 and label.shape[-1] == 1):
         label = paddle.reshape(label, (-1, 1))
     elif label.shape[-1] != 1:
         label = paddle.argmax(label, axis=-1, keepdim=True)
     correct = pred == label
     return paddle.cast(correct, dtype='float32')
 
-paddle.metric.Accuracy.compute = _compute
 
+paddle.metric.Accuracy.compute = _compute
 
 
 def run(
@@ -113,7 +108,7 @@ def run(
     log_freq=100,
     visualdl_dir="./visualdl_log/autoslim3",
     **kwargs
-    ):
+):
     run_config = locals()
     run_config.update(run_config["kwargs"])
     del run_config["kwargs"]
@@ -133,53 +128,53 @@ def main(cfg):
     paddle.set_device('gpu:{}'.format(dist.ParallelEnv().device_id))
     if dist.get_rank() == 0:
         print(cfg)
-    IMAGE_MEAN = (0.485,0.456,0.406)
-    IMAGE_STD = (0.229,0.224,0.225)
+    IMAGE_MEAN = (0.485, 0.456, 0.406)
+    IMAGE_STD = (0.229, 0.224, 0.225)
 
     cfg.lr = cfg.lr * cfg.batch_size * dist.get_world_size() / 256
-    warmup_step = int(1281024 / (cfg.batch_size * dist.get_world_size())) * cfg.warmup
+    warmup_step = int(1281024 / (cfg.batch_size *
+                                 dist.get_world_size())) * cfg.warmup
 
-    # data augmentation 
+    # data augmentation
     transforms = Compose([
         MyRandomResizedCrop(cfg.image_size_list),
         RandomHorizontalFlip(),
         ToArray(),
         Normalize(IMAGE_MEAN, IMAGE_STD),
     ])
-    val_transforms = Compose([Resize(256), CenterCrop(224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
-    train_set = DatasetFolder(os.path.join(cfg.image_dir, 'train'), transform=transforms)
+    val_transforms = Compose([Resize(256), CenterCrop(
+        224), ToArray(), Normalize(IMAGE_MEAN, IMAGE_STD)])
+    train_set = DatasetFolder(os.path.join(
+        cfg.image_dir, 'train'), transform=transforms)
     # val_set = DatasetFolder(os.path.join(cfg.image_dir, 'val'), transform=val_transforms)
-    callbacks = [LRSchedulerM(), 
-                 MyModelCheckpoint(cfg.save_freq, cfg.save_dir, cfg.resume, cfg.phase),
+    callbacks = [LRSchedulerM(),
+                 MyModelCheckpoint(cfg.save_freq, cfg.save_dir,
+                                   cfg.resume, cfg.phase),
                  paddle.callbacks.VisualDL(log_dir=cfg.visualdl_dir)]
 
     # build resnet48 and teacher net
-    net = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=True)
-    tnet = build_classifier(cfg.backbone, pretrained=cfg.pretrained, reorder=False)
+    net = build_classifier(
+        cfg.backbone, pretrained=cfg.pretrained, reorder=True)
+    tnet = build_classifier(
+        cfg.backbone, pretrained=cfg.pretrained, reorder=False)
     origin_weights = {}
     for name, param in net.named_parameters():
         origin_weights[name] = param
-    
-    # convert resnet48 to supernet 
-    sp_model = Convert(supernet(expand_ratio=[1.0])).convert(net)  # net转换成supernet
+
+    # convert resnet48 to supernet
+    sp_model = Convert(supernet(expand_ratio=[1.0])).convert(
+        net)  # net转换成supernet
     utils.set_state_dict(sp_model, origin_weights)  # 重新对supernet加载数据
     del origin_weights
 
-    # set candidate config 
+    # set candidate config
     cand_cfg = {
-            'i': [224],  # image size
-            'd': [(2, 5), (2, 5), (2, 8), (2, 5)],  # depth
-            'k': [3],  # kernel size
-            'c': [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7] # channel ratio
+        'i': [224],  # image size
+        'd': [(2, 5), (2, 5), (2, 8), (2, 5)],  # depth
+        'k': [3],  # kernel size
+        'c': [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7]  # channel ratio
     }
 
-    # default_run_config = {
-    #     'train_batch_size': cfg.batch_size,
-    #     'n_epochs': [[1], [2, 3], [4, 5]],
-    #     'total_images': 12,
-    #     'elastic_depth': (2, 3, 4, 5),
-    #     'dynamic_batch_size': [1, 1, 1],
-    # }
 
     default_distill_config = {
         'lambda_distill': 0.5,
@@ -191,28 +186,27 @@ def main(cfg):
     }
 
     ofa_net = ResOFA(sp_model,
-                    #  run_config=RunConfig(**default_run_config),
-                     distill_config=DistillConfig(**default_distill_config),  # lambda_distill=1.0
+                     distill_config=DistillConfig(
+                         **default_distill_config),  # lambda_distill=1.0
                      candidate_config=cand_cfg,
                      block_conv_num=2)
 
-    # ofa_net.set_task(['depth', 'expand_ratio'])
     ofa_net.set_task('expand_ratio')
 
     run_config = {'dynamic_batch_size': cfg.dyna_batch_size}
     model = Trainer(ofa_net, cfg=run_config)
 
-    # calculate loss by ce 
+    # calculate loss by ce
     model.prepare(
         paddle.optimizer.Momentum(
-            learning_rate=LinearWarmup( # delete cfg.lr * 0.05 
+            learning_rate=LinearWarmup(  # delete cfg.lr * 0.05
                 CosineAnnealingDecay(cfg.lr, cfg.max_epoch), warmup_step, 0., cfg.lr),
             momentum=cfg.momentum,
             parameters=model.parameters(),
             weight_decay=cfg.weight_decay),
         CrossEntropyLoss(),
-        paddle.metric.Accuracy(topk=(1,5)))
-        
+        paddle.metric.Accuracy(topk=(1, 5)))
+
     model.fit(
         train_set,
         None,
@@ -223,7 +217,7 @@ def main(cfg):
         log_freq=cfg.log_freq,
         shuffle=True,
         num_workers=8,
-        verbose=2, 
+        verbose=2,
         drop_last=True,
         callbacks=callbacks,
     )

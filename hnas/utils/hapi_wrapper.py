@@ -1,35 +1,33 @@
-import warnings
-import random
-import numpy as np
+import os
 import json
+import random
+import warnings
 
+import numpy as np
 import paddle
 import paddle.distributed as dist
-
-from paddle import Model
-from paddle import fluid
-from paddle.hapi.model import DynamicGraphAdapter
-from paddle.fluid.dygraph.parallel import ParallelEnv
+from hnas.utils.alphanet_loss import AdaptiveLossSoft
+from hnas.utils.compute_zen_score import compute_nas_score
+from hnas.utils.flops_calculation import get_arch_flops
+from hnas.utils.pairwise_rank import PairwiseRankLoss
+from model_zennas import Model as myModel
+from paddle import Model, fluid
 from paddle.fluid.dygraph.base import to_variable
+from paddle.fluid.dygraph.parallel import ParallelEnv
 from paddle.fluid.executor import global_scope
-from paddle.fluid.framework import in_dygraph_mode, Variable
+from paddle.fluid.framework import Variable, in_dygraph_mode
 from paddle.fluid.layers import collective
-
-from paddleslim.nas.ofa import OFA
 from paddle.fluid.layers.utils import flatten
-from paddle.hapi.callbacks import config_callbacks, EarlyStopping
-from paddle.io import Dataset, DistributedBatchSampler, DataLoader
+from paddle.hapi.callbacks import EarlyStopping, config_callbacks
+from paddle.hapi.model import DynamicGraphAdapter
+from paddle.io import DataLoader, Dataset, DistributedBatchSampler
+from paddleslim.nas.ofa import OFA
+
+from utils.distance_calc import hamming_distance
 
 from ..dataset.dataiter import DataLoader as TrainDataLoader
 from ..dataset.random_size_crop import MyRandomResizedCrop
 
-from hnas.utils.alphanet_loss import AdaptiveLossSoft
-from hnas.utils.pairwise_rank import PairwiseRankLoss
-from hnas.utils.compute_zen_score import compute_nas_score
-from hnas.utils.flops_calculation import get_arch_flops
-
-from model_zennas import Model as myModel
-from utils.distance_calc import hamming_distance
 
 def _all_gather(x, nranks, ring_id=0, use_calc_stream=True):
     return collective._c_allgather(
@@ -108,9 +106,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         for i in range(self.dyna_bs):
             subnet_seed = int('%d%.1d' % (epoch * nBatch + step, i))
             np.random.seed(subnet_seed)
-
-            # sample a subnet for training 
-            # self.model.network.active_subnet(MyRandomResizedCrop.current_size)
 
             # once for all
             current_config = self.model.network._progressive_shrinking("random")
@@ -220,13 +215,7 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             # loss5 =  2 * np.sin(np.pi * 0.8 * epoch / 70) * self.pairwise_rankloss(flops1, flops2, loss3, loss4)
             loss5 =  min(2, epoch/10.) * self.pairwise_rankloss(flops1, flops2, loss3, loss4)
             loss5.backward()
-
-        # change this place to process the output of network 
-        # losses = self.model._loss(*(to_list(outputs) + labels))
-        # losses = to_list(loss_list)
-        # final_loss = fluid.layers.sum(losses)
-        # final_loss.backward()
-
+            
         self.model._optimizer.step()
         self.model._optimizer.clear_grad()
 
@@ -448,12 +437,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             loss5 = self.pairwise_rankloss(avg_nas_score1, avg_nas_score2, loss3, loss4)
             loss5.backward()
 
-        # change this place to process the output of network 
-        # losses = self.model._loss(*(to_list(outputs) + labels))
-        # losses = to_list(loss_list)
-        # final_loss = fluid.layers.sum(losses)
-        # final_loss.backward()
-
         self.model._optimizer.step()
         self.model._optimizer.clear_grad()
 
@@ -563,14 +546,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             # loss4.backward()
             loss5.backward()
 
-            # loss5 = self.pairwise_rankloss(avg_nas_score1, avg_nas_score2, loss3, loss4)
-            # loss5.backward()
-
-        # change this place to process the output of network 
-        # losses = self.model._loss(*(to_list(outputs) + labels))
-        # losses = to_list(loss_list)
-        # final_loss = fluid.layers.sum(losses)
-        # final_loss.backward()
 
         self.model._optimizer.step()
         self.model._optimizer.clear_grad()
@@ -646,12 +621,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
                 loss3 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
             loss3.backward()
 
-        # change this place to process the output of network 
-        # losses = self.model._loss(*(to_list(outputs) + labels))
-        # losses = to_list(loss_list)
-        # final_loss = fluid.layers.sum(losses)
-        # final_loss.backward()
-
         self.model._optimizer.step()
         self.model._optimizer.clear_grad()
 
@@ -670,11 +639,11 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         inputs = to_list(inputs)
         self._input_info = _update_input_info(inputs)
         labels = labels or []
-        labels = [to_variable(l) for l in to_list(labels)]
+        # labels = [to_variable(l) for l in to_list(labels)]
 
         outputs = self.model.network.forward(*[to_variable(x) for x in inputs])
         if self.model._loss:
-            losses = self.model._loss(*(to_list(outputs) + labels))
+            losses = self.model._loss(input=outputs, label=to_variable(labels).squeeze(0))
             losses = to_list(losses)
 
         if self._nranks > 1:
@@ -1041,17 +1010,15 @@ class Trainer(Model):
                 print(sample_res)
 
             sample_result.append(sample_res)
-
-            if ParallelEnv().local_rank == 0:
-                num = json_path.split('_')[-1].split(".")[0]
-                with open(f'checkpoints/results/19th_rkloss_mish_flops_latedecay_sandwich_2times/channel_sample_{num}.txt', 'a') as f:
-                    f.write('{}\n'.format(sample_res))
-
             save_candidate[arch_name]['acc'] = eval_result['acc_top1']
 
         if ParallelEnv().local_rank == 0:
-            save_path = candidate_path.replace('CVPR_2022_NAS_Track1_test', 'CVPR_2022_NAS_Track1_test_{}'.format(time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())))
+            save_path = "./checkpoints/submit_results.json"
+            if not os.path.exists("./checkpoints"):
+                os.makedirs("./checkpoints")
+                
             with open(save_path, 'w') as f:
+                print(f"save to {save_path}")
                 json.dump(save_candidate, f)
 
         return sample_result

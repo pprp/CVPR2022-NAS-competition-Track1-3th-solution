@@ -1,4 +1,4 @@
-paddle==2.2.2
+paddlepaddle-gpu
 fire
 matplotlib
 visualdl 
