@@ -3,9 +3,9 @@ source activate pp
 
 
 # 将数据加载到内存中
-mkdir -p /dev/shm/imagenet-mini
-unzip -n /data/home/scv6681/run/data/imagenet_mini_train.zip -d /dev/shm/imagenet-mini > /dev/null
-unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
+# mkdir -p /dev/shm/imagenet-mini
+# unzip -n /data/home/scv6681/run/data/imagenet_mini_train.zip -d /dev/shm/imagenet-mini > /dev/null
+# unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
 IMAGE_DIR=/dev/shm/imagenet-mini
 
 

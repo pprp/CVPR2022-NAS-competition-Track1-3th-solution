@@ -4,8 +4,8 @@ JSON_PATH1=$1
 RESUME_PATH="checkpoints/reproduct_rank_loss_flops_sanwich"
 
 # 为了优化速度问题，将数据集加载到内存中。
-mkdir -p /dev/shm/imagenet-mini
-unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
+# mkdir -p /dev/shm/imagenet-mini
+# unzip -n /data/home/scv6681/run/data/imagenet_mini_val.zip -d /dev/shm/imagenet-mini > /dev/null
 IMAGE_DIR=/dev/shm/imagenet-mini
 
 python3 -u eval_supernet.py run \

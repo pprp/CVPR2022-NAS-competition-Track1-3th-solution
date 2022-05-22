@@ -6,9 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np 
 
 def hamming_distance(arch1:str, arch2:str):
-    assert len(arch1) == len(arch2)
-    # 1 2584 33333000000222222321215451545553545157262723200
-    
+    assert len(arch1) == len(arch2)   
     arch1 = arch1[5:]
     arch2 = arch2[5:]
     
@@ -33,7 +31,6 @@ def sample_times(all_dict: dict, times:int):
     return dis_list
 
 def test_sample_time(all_dict: dict):
-    # 33333000000222222321215451545553545157262723200
     anchor_arch = all_dict[random.sample(all_dict.keys(), 1)[0]]["arch"]
     
     cnt = 0 
@@ -62,9 +59,6 @@ if __name__ == "__main__":
     for k,v in buck.items():
         x.append(k)
         y.append(v)
-
-    # print(f"mean: {np.mean(np.array(dis_list))}")
-    # print(f"var:  {np.var(np.array(dis_list))}")
     
     plt.bar(x, y)
     plt.savefig("./hamming_dis.png")

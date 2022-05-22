@@ -94,8 +94,6 @@ def f_divergence(q_logits, p_logits, alpha, iw_clip=1e3):
 
     loss = paddle.sum(q_prob * (f - f_base), axis=1)
     grad_loss = -paddle.sum(q_prob * rho_f * q_log_prob, axis=1)
-    # loss = torch.sum(q_prob * (f - f_base), dim=1)
-    # grad_loss = -torch.sum(q_prob * rho_f * q_log_prob, dim=1)
     return loss, grad_loss
 
 

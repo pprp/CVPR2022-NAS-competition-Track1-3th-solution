@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import random
 import warnings
 
@@ -177,7 +177,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
         loss2.backward()
         del output 
 
-
         # sample random subnets as student net and perform distill operation
         for _ in range(self.dyna_bs-2): # 4
             random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
@@ -226,114 +225,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
             metrics.append(m)
 
         return ([to_numpy(l) for l in [loss1]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss1]]
-
-    def train_batch_sandwich_with_balanced_flops_sampling(self, inputs, labels=None, **kwargs):
-        # follow sandwich rule in autoslim flops guided 
-        assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
-        # self.model.network.train()
-        self.model.network.model.train()
-        self.mode = 'train'
-        inputs = to_list(inputs)
-        self._input_info = _update_input_info(inputs)
-        labels = to_variable(labels).squeeze(0)
-        epoch = kwargs.get('epoch', None)
-        self.epoch = epoch
-        nBatch = kwargs.get('nBatch', None)
-        step = kwargs.get('step', None)
-
-        # set seed 
-        subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
-        np.random.seed(subnet_seed)
-
-        # sample largest subnet as teacher net 
-        largest_config = self.model.network.active_autoslim_subnet(sample_type="largest")
-        self.model.network.set_net_config(largest_config)
-        if self._nranks > 1:
-            teacher_output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-        else:
-            teacher_output = self.model.network.forward(*[to_variable(x) for x in inputs])
-        ### normal forward with gt 
-        loss1 = self.model._loss(input=teacher_output[0], tea_input=None, label=labels)
-        loss1.backward()
-
-        # sample smallest subnet as student net and perform distill operation
-        smallest_config = self.model.network.active_autoslim_subnet(sample_type="smallest")
-        self.model.network.set_net_config(smallest_config)
-        ### forward with inplace distillation
-        if self._nranks > 1:
-            output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-        else:
-            output = self.model.network.forward(*[to_variable(x) for x in inputs])
-
-        loss2 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
-        loss2.backward()
-        del output 
-
-
-        # sample random subnets as student net and perform distill operation
-        for _ in range(self.dyna_bs-2): 
-            ########################## BALANCED SAMPLE ######################
-            config_list = []
-            flops_list = []
-            for _ in range(4): # sample 4 random path to calculate the flops
-                random_config = self.model.network.active_autoslim_subnet(sample_type="random")
-                self.model.network.set_net_config(random_config1)
-                flops = get_arch_flops(self.model.network.gen_subnet_code)
-
-                config_list.append(random_config)
-                flops_list.append(flops)
-            
-            sum_record = np.int64(np.sum(np.array(flops_list)))
-            probs = np.array(flops_list) / sum_record  
-            target_config = random.choices(config_list, weights=probs, k=1)[0]
-
-            # random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
-            self.model.network.set_net_config(target_config)
-            if self._nranks > 1:
-                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-            else:
-                output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            
-            loss = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
-            loss.backward()
-            del output
-
-        for _ in range(2):
-            # generate two sample to compare with each other 
-            random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
-            self.model.network.set_net_config(random_config1)
-            flops1 = get_arch_flops(self.model.network.gen_subnet_code)
-            if self._nranks > 1:
-                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-            else:
-                output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            loss3 = self.model._loss(input=output[0],tea_input=None, label=labels)
-            del output
-
-            random_config2 = self.model.network.active_autoslim_subnet(sample_type="random")
-            self.model.network.set_net_config(random_config2)
-            flops2 = get_arch_flops(self.model.network.gen_subnet_code)
-            if self._nranks > 1:
-                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-            else:
-                output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            loss4 = self.model._loss(input=output[0],tea_input=None, label=labels)
-            del output
-            
-            loss5 = self.pairwise_rankloss(flops1, flops2, loss3, loss4)
-            loss5.backward()
-
-        self.model._optimizer.step()
-        self.model._optimizer.clear_grad()
-
-        metrics = []
-        for metric in self.model._metrics:
-            metric_outs = metric.compute(output[0], labels)
-            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
-            metrics.append(m)
-
-        return ([to_numpy(l) for l in [loss1]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss1]]
-
 
     def train_batch_sandwich_with_zenscore(self, inputs, labels=None, **kwargs):
          # follow sandwich rule in autoslim
@@ -448,115 +339,6 @@ class MyDynamicGraphAdapter(DynamicGraphAdapter):
 
         return ([to_numpy(l) for l in [loss1]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss1]]
 
-
-    def train_batch_sandwich_with_zenscore_cosine(self, inputs, labels=None, **kwargs):
-         # follow sandwich rule in autoslim
-        assert self.model._optimizer, "model not ready, please call `model.prepare()` first"
-        # self.model.network.train()
-        self.model.network.model.train()
-        self.mode = 'train'
-        inputs = to_list(inputs)
-        self._input_info = _update_input_info(inputs)
-        labels = to_variable(labels).squeeze(0)
-        epoch = kwargs.get('epoch', None)
-        self.epoch = epoch
-        nBatch = kwargs.get('nBatch', None)
-        step = kwargs.get('step', None)
-
-        # set seed 
-        subnet_seed = int('%d%.1d' % (epoch * nBatch + step, step))
-        np.random.seed(subnet_seed)
-
-        # sample largest subnet as teacher net 
-        largest_config = self.model.network.active_autoslim_subnet(sample_type="largest")
-        self.model.network.set_net_config(largest_config)
-        if self._nranks > 1:
-            teacher_output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-        else:
-            teacher_output = self.model.network.forward(*[to_variable(x) for x in inputs])
-        ### normal forward with gt 
-        loss1 = self.model._loss(input=teacher_output[0], tea_input=None, label=labels)
-        loss1.backward()
-
-        # sample smallest subnet as student net and perform distill operation
-        smallest_config = self.model.network.active_autoslim_subnet(sample_type="smallest")
-        self.model.network.set_net_config(smallest_config)
-        ### forward with inplace distillation
-        if self._nranks > 1:
-            output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-        else:
-            output = self.model.network.forward(*[to_variable(x) for x in inputs])
-
-        loss2 = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
-        loss2.backward()
-        del output 
-
-
-        # sample random subnets as student net and perform distill operation
-        for _ in range(self.dyna_bs-2): 
-            random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
-            self.model.network.set_net_config(random_config1)
-            if self._nranks > 1:
-                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-            else:
-                output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            
-            loss = self.model._loss(input=output[0],tea_input=teacher_output[0], label=None)
-            loss.backward()
-            del output
-
-        for _ in range(self.dyna_bs - 1): # T=3
-            # generate two sample to compare with each other 
-            random_config1 = self.model.network.active_autoslim_subnet(sample_type="random")
-            self.model.network.set_net_config(random_config1)
-            # flops1 = get_arch_flops(self.model.network.gen_subnet_code)
-            model1 = myModel(arch=self.model.network.gen_subnet_code, block='basic')
-            avg_nas_score1, std_nas_score1, avg_precision1 = compute_nas_score(
-                model1, 
-                batch_size=16,
-                resolution=224, 
-                repeat=32
-            )
-
-            if self._nranks > 1:
-                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-            else:
-                output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            loss3 = self.model._loss(input=output[0],tea_input=None, label=labels)
-            # loss3.backward()
-            del output
-
-            random_config2 = self.model.network.active_autoslim_subnet(sample_type="random")
-            self.model.network.set_net_config(random_config2)
-            # flops2 = get_arch_flops(self.model.network.gen_subnet_code)
-            model2 = myModel(arch=self.model.network.gen_subnet_code, block='basic')
-            avg_nas_score2, std_nas_score2, avg_precision2 = compute_nas_score(
-                model2, 
-                batch_size=16,
-                resolution=224, 
-                repeat=32
-            )
-            if self._nranks > 1:
-                output = self.ddp_model.forward(*[to_variable(x) for x in inputs])
-            else:
-                output = self.model.network.forward(*[to_variable(x) for x in inputs])
-            loss4 = self.model._loss(input=output[0],tea_input=None, label=labels) 
-            # (2.5 * (1+np.cos(np.pi * (epoch - 70)/70))) 
-            loss5 = min(1.5, epoch / 10) * self.pairwise_rankloss(avg_nas_score1, avg_nas_score2, loss3, loss4)
-            # loss4.backward()
-            loss5.backward()
-
-
-        self.model._optimizer.step()
-        self.model._optimizer.clear_grad()
-
-        metrics = []
-        for metric in self.model._metrics:
-            metric_outs = metric.compute(output[0], labels)
-            m = metric.update(*[to_numpy(m) for m in to_list(metric_outs)])
-            metrics.append(m)
-
-        return ([to_numpy(l) for l in [loss1]], metrics) if len(metrics) > 0 else [to_numpy(l) for l in [loss1]]
 
     # TODO multi device in dygraph mode not implemented at present time
     def train_batch_sandwich(self, inputs, labels=None, **kwargs):
