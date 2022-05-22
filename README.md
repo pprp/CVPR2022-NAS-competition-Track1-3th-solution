@@ -11,13 +11,18 @@
 
 > 注：开源代码中对应多个分支，分别对应不同的技术方案实现，欢迎Star,Fork,PR! 我们最终的方案对应的是main branch。
 
-
+![](./resources/landmark.png)
 
 ## 1. 技术方案
 
 有关技术方案的中英文细节，请查看 [tutorial](https://github.com/pprp/CVPR2022-NAS-competition-Track1-3th-solution/blob/main/tutortial.ipynb) 或者访问 [AI Studio](https://aistudio.baidu.com/aistudio/projectdetail/4061466?shared=1), 选择V100 32GB进行训练。
 
+其中包括：
 
+- 中文版详细说明，以及对应的实验结果。
+- 英文版复现说明，能够在AI Studio中直接运行。
+
+![](./resources/result.png)
 
 ## 2. 代码审查 
 
@@ -52,9 +57,9 @@
 	- split_json.py # 划分json文件，并行推理	
 ```
 
-其中有关核心的方案实现在`hnas/utils/hapi_wrapper.py`中实现。
+其中有关核心的方案实现在`hnas/utils/hapi_wrapper.py`中实现，建议配合伪代码进行审查
 
-
+![](./resources/algo.png)
 
 
 
