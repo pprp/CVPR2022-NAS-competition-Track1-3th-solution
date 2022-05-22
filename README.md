@@ -1,7 +1,7 @@
 
 # Prior-Guided One-Shot NAS for CVPR21 workshop
 
-这是CVPR 2022 NAS workshop Track1独立训练子网络代码以及supernet训练代码
+这是CVPR 2022 NAS workshop Track1 第三名方案，包含了独立训练子网络代码以及supernet训练代码。
 
 开发流程：https://gitlab.com/pprp/rcnas 
 
@@ -30,6 +30,7 @@
 
 - Single Path One Shot 
 - FairNAS 
+- Once for all
 - AutoSlim/BigNAS
 - AlphaNet Loss 
 - Ranking Loss 
@@ -61,6 +62,9 @@
 
 ![](./resources/algo.png)
 
+- PReLU+FLOPs引导的Rank Loss方案对应： https://github.com/pprp/CVPR2022-NAS-competition-Track1-3th-solution/blob/67fa9e464d4116fe770377eb3434dd9007f4e595/hnas/utils/hapi_wrapper.py#L138 
+- Mish+ZenScore引导的Rank Loss方案对应：https://github.com/pprp/CVPR2022-NAS-competition-Track1-3th-solution/blob/67fa9e464d4116fe770377eb3434dd9007f4e595/hnas/utils/hapi_wrapper.py#L229
+
 
 
 ## 3. 方案复现流程
@@ -89,7 +93,7 @@ bash train_supernet.sh
 bash eval_supernet.sh checkpoints/CVPR_2022_NAS_Track1_test.json
 ```
 
-- 验证完成后会请访问 `checkpoints/`
+- 验证完成后会请访问 `checkpoints/submit_results.json` 得到生成的对应的可提交结果。
 
 
 
