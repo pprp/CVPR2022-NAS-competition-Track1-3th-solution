@@ -1,9 +1,7 @@
-checkpoints/*
 *.pyc
 *.out 
 *.txt 
 *.bak 
-*.json 
 slurm* 
 .idea/
 channel_sample.txt
