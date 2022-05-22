@@ -65,7 +65,7 @@
 - PReLU+FLOPs引导的Rank Loss方案对应： https://github.com/pprp/CVPR2022-NAS-competition-Track1-3th-solution/blob/67fa9e464d4116fe770377eb3434dd9007f4e595/hnas/utils/hapi_wrapper.py#L138 
 - Mish+ZenScore引导的Rank Loss方案对应：https://github.com/pprp/CVPR2022-NAS-competition-Track1-3th-solution/blob/67fa9e464d4116fe770377eb3434dd9007f4e595/hnas/utils/hapi_wrapper.py#L229
 
-
+> 注：整个过程中没有使用stand alone真实准确率进行反向传播，可以在以上两个函数的loss.backward之前进行检查。
 
 ## 3. 方案复现流程
 
@@ -97,7 +97,27 @@ bash eval_supernet.sh checkpoints/CVPR_2022_NAS_Track1_test.json
 
 
 
+## 4. 参考项目
 
+感谢以下开源项目，在开发过程中受到了以下项目的启发。
 
+https://github.com/idstcv/ZenNAS
 
+https://github.com/xiteng01/CVPR_2022_Track1_demo
+
+https://github.com/facebookresearch/deit
+
+https://github.com/mit-han-lab/once-for-all
+
+https://github.com/facebookresearch/AlphaNet
+
+https://github.com/JiahuiYu/slimmable_networks
+
+https://github.com/open-mmlab/mmrazor
+
+https://github.com/kcyu2014/nas-landmarkreg
+
+https://github.com/megvii-model/SinglePathOneShot
+
+https://github.com/xiaomi-automl/FairNAS
 
