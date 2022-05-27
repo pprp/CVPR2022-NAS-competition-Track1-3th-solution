@@ -12,3 +12,5 @@ visualdl_log/*
 *.log 
 error_autoslim40e.out
 ofa_depth_part.out
+*.jpg
+*.json
