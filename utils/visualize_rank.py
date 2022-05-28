@@ -23,7 +23,7 @@ def draw_rank_illustration(lx:list,
     # extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
 
     # plt.clf()
-    idxs = random.sample(list(range(len(lx))), int(len(lx) * 0.5))
+    idxs = random.sample(list(range(len(lx))), int(len(lx) * 0.3))
     
     new_x, new_y = [], []
     
@@ -36,9 +36,9 @@ def draw_rank_illustration(lx:list,
     plt.figure(dpi=300)
     plt.xticks([])
     plt.yticks([])
-    plt.xlabel(xtitle)
-    plt.ylabel(ytitle)
-    plt.title("Pearson rank correlation: {:.4f}".format(pearson(lx, ly)))
+    plt.xlabel(xtitle, fontsize=16)
+    plt.ylabel(ytitle, fontsize=16)
+    plt.title("Pearson rank correlation: {:.4f}".format(pearson(lx, ly)), fontsize=16)
     plt.scatter(new_x, new_y, c=new_color, s=5, marker='.', cmap=plt.cm.get_cmap('viridis'), alpha=0.9)
 
 
@@ -59,11 +59,22 @@ def convert_sort_info(prior_dict):
         result_dict[arch2name[tmp_dict["arch"]]] = i     
     return result_dict 
 
+def count_search_space():
+    depth_range1 = list(range(2,6))
+    depth_range2 = list(range(2,9))
+    cnt = 0
+    for stage1 in depth_range1:
+        for stage2 in depth_range1:
+            for stage3 in depth_range2:
+                for stage4 in depth_range1:
+                    cnt += 7 ** (stage1 + stage2 + stage3 + stage4)
+    return cnt 
+
 if __name__ == "__main__":
     path1 = r"checkpoints/prior_flops.json"
-    path2 = r"checkpoints/26th_mish_zenscore_4stages_max15_sandwich_3times.json"
+    path2 = r"checkpoints\83.26_prelu_rankloss_flops_run5.json"
     xtitle = r"FLOPs Prior Ranking"
-    ytitle = r"ZenScore Guided Ranking"
+    ytitle = r"FLOPs Guided Ranking"
         
     with open(path1) as f:
         prior_flops_info = json.load(f)
