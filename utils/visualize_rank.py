@@ -39,9 +39,9 @@ def draw_rank_illustration(lx:list,
     plt.figure(dpi=300)
     plt.xticks([])
     plt.yticks([])
-    plt.xlabel(xtitle, fontsize=45)
-    plt.ylabel(ytitle, fontsize=45)
-    plt.title("Pearson rank correlation: {:.4f}".format(pearson(lx, ly)), fontsize=45)
+    plt.xlabel(xtitle, fontsize=21)
+    plt.ylabel(ytitle, fontsize=21)
+    plt.title("Pearson Coeff. {:.4f}".format(pearson(lx, ly)), fontsize=22)
     plt.scatter(new_x, new_y, c=new_color, s=5, marker='.', cmap=plt.cm.get_cmap('viridis'), alpha=0.9)
 
 
@@ -151,25 +151,25 @@ def sub_plot_lambda():
     
 
 if __name__ == "__main__":
-    sub_plot_lambda()
-    # path1 = r"checkpoints/prior_flops.json"
-    # path2 = r"checkpoints\83.26_prelu_rankloss_flops_run5.json"
-    # xtitle = r"FLOPs Prior Ranking"
-    # ytitle = r"FLOPs Guided Ranking"
+    # sub_plot_lambda()
+    path1 = r"checkpoints/prior_zenscore.json"
+    path2 = r"checkpoints\83.0_mish_rankloss_zenscore_run4.json"
+    xtitle = r"ZenScore Prior Ranking"
+    ytitle = r"ZenScore Guided Ranking"
         
-    # with open(path1) as f:
-    #     prior_flops_info = json.load(f)
+    with open(path1) as f:
+        prior_flops_info = json.load(f)
 
-    # with open(path2) as f:
-    #     prior_zenscore_info = json.load(f)
+    with open(path2) as f:
+        prior_zenscore_info = json.load(f)
         
-    # prior_flops_info = convert_sort_info(prior_flops_info)
-    # prior_zenscore_info = convert_sort_info(prior_zenscore_info)
+    prior_flops_info = convert_sort_info(prior_flops_info)
+    prior_zenscore_info = convert_sort_info(prior_zenscore_info)
     
-    # lx, ly = data_generate(prior_flops_info, prior_zenscore_info)
+    lx, ly = data_generate(prior_flops_info, prior_zenscore_info)
     
-    # draw_rank_illustration(lx, ly, 
-    #                        xtitle=xtitle,
-    #                        ytitle=ytitle)
+    draw_rank_illustration(lx, ly, 
+                           xtitle=xtitle,
+                           ytitle=ytitle)
     
     
