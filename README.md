@@ -1,6 +1,8 @@
 
 # Prior-Guided One-Shot NAS for CVPR21 workshop
 
+(ICASSP2023) RD-NAS: Enhancing One-shot Supernet Ranking Ability via Ranking Distillation from Zero-cost Proxies
+
 这是CVPR 2022 NAS workshop Track1 第三名方案，包含了独立训练子网络代码以及supernet训练代码。
 
 开发流程：https://gitlab.com/pprp/rcnas 
